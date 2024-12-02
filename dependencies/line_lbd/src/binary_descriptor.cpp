@@ -488,9 +488,7 @@ void BinaryDescriptor::detectImpl( const Mat& imageSrc, std::vector<KeyLine>& ke
 {
   cv::Mat image;
   if( imageSrc.channels() != 1 )
-  {
-    cvtColor( imageSrc, image, COLOR_BGR2GRAY );
-  }
+    cvtColor( imageSrc, image, cv::COLOR_BGR2GRAY );
   else
     image = imageSrc.clone();  
   
@@ -610,7 +608,7 @@ void BinaryDescriptor::computeImpl( const Mat& imageSrc, std::vector<KeyLine>& k
   /* convert input image to gray scale */
   cv::Mat image;
   if( imageSrc.channels() != 1 )
-    cvtColor( imageSrc, image, COLOR_BGR2GRAY );
+    cvtColor( imageSrc, image, cv::COLOR_BGR2GRAY );
   else
     image = imageSrc.clone();
 

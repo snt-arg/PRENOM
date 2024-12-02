@@ -22,6 +22,9 @@ dependencies/Multi-Object-NeRF/output/*
 build/
 cmake-build-debug/
 
+# datasets
+room/
+
 output/*
 !output/.gitkeep
 !dependencies/Multi-Object-NeRF/output/.gitkeep

@@ -294,7 +294,7 @@ void line_lbd_detect::detect_descrip_lines_octaves(const cv::Mat& gray_img, std:
     //   std::cout<<"marker 1.0  start detect raw lines"<<std::endl;
   cv::Mat image;
   if( gray_img.channels() != 1 )
-    cvtColor( gray_img, image, COLOR_BGR2GRAY );
+    cvtColor( gray_img, image, cv::COLOR_BGR2GRAY );
   else
     image = gray_img;
     

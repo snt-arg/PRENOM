@@ -1,7 +1,7 @@
 
 #include "nerf_model.h"
 #include "common.h"  
-#include <opencv/cv.hpp>
+#include <opencv2/opencv.hpp>
 #include <GL/glew.h>
 #include <cuda_gl_interop.h>
 #include <iostream>

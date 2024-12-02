@@ -35,7 +35,7 @@ find_package(Pangolin REQUIRED)
 ##########
 # OpenCV #
 ##########
-find_package(OpenCV 3.0 REQUIRED)
+find_package(OpenCV 4.2 REQUIRED)
 
 include_directories(
 ${EIGEN3_INCLUDE_DIR}

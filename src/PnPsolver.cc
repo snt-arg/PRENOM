@@ -374,80 +374,80 @@ void PnPsolver::add_correspondence(double X, double Y, double Z, double u, doubl
 
 void PnPsolver::choose_control_points(void)
 {
-  // Take C0 as the reference points centroid:
-  cws[0][0] = cws[0][1] = cws[0][2] = 0;
-  for(int i = 0; i < number_of_correspondences; i++)
-    for(int j = 0; j < 3; j++)
-      cws[0][j] += pws[3 * i + j];
+    // Take C0 as the reference points centroid:
+    cws[0][0] = cws[0][1] = cws[0][2] = 0;
+    for (int i = 0; i < number_of_correspondences; i++)
+        for (int j = 0; j < 3; j++)
+            cws[0][j] += pws[3 * i + j];
 
-  for(int j = 0; j < 3; j++)
-    cws[0][j] /= number_of_correspondences;
+    for (int j = 0; j < 3; j++)
+        cws[0][j] /= number_of_correspondences;
 
+    // Take C1, C2, and C3 from PCA on the reference points:
+    cv::Mat PW0 = cv::Mat(number_of_correspondences, 3, CV_64F);
+    for (int i = 0; i < number_of_correspondences; i++)
+        for (int j = 0; j < 3; j++)
+            PW0.at<double>(i, j) = pws[3 * i + j] - cws[0][j];
 
-  // Take C1, C2, and C3 from PCA on the reference points:
-  CvMat * PW0 = cvCreateMat(number_of_correspondences, 3, CV_64F);
+    // Compute covariance matrix PW0tPW0
+    cv::Mat PW0tPW0 = PW0.t() * PW0;
 
-  double pw0tpw0[3 * 3], dc[3], uct[3 * 3];
-  CvMat PW0tPW0 = cvMat(3, 3, CV_64F, pw0tpw0);
-  CvMat DC      = cvMat(3, 1, CV_64F, dc);
-  CvMat UCt     = cvMat(3, 3, CV_64F, uct);
+    // Perform SVD
+    cv::Mat eigenvalues, DC, UCt;
+    cv::SVD::compute(PW0tPW0, eigenvalues, DC, UCt);
 
-  for(int i = 0; i < number_of_correspondences; i++)
-    for(int j = 0; j < 3; j++)
-      PW0->data.db[3 * i + j] = pws[3 * i + j] - cws[0][j];
-
-  cvMulTransposed(PW0, &PW0tPW0, 1);
-  cvSVD(&PW0tPW0, &DC, &UCt, 0, CV_SVD_MODIFY_A | CV_SVD_U_T);
-
-  cvReleaseMat(&PW0);
-
-  for(int i = 1; i < 4; i++) {
-    double k = sqrt(dc[i - 1] / number_of_correspondences);
-    for(int j = 0; j < 3; j++)
-      cws[i][j] = cws[0][j] + k * uct[3 * (i - 1) + j];
-  }
+    // Compute the control points
+    for (int i = 1; i < 4; i++) {
+        double k = sqrt(DC.at<double>(i - 1) / number_of_correspondences);
+        for (int j = 0; j < 3; j++)
+            cws[i][j] = cws[0][j] + k * UCt.at<double>(i - 1, j);
+    }
 }
+
 
 void PnPsolver::compute_barycentric_coordinates(void)
 {
-  double cc[3 * 3], cc_inv[3 * 3];
-  CvMat CC     = cvMat(3, 3, CV_64F, cc);
-  CvMat CC_inv = cvMat(3, 3, CV_64F, cc_inv);
+    double cc[3 * 3];
+    cv::Mat CC = cv::Mat(3, 3, CV_64F, cc);
 
-  for(int i = 0; i < 3; i++)
-    for(int j = 1; j < 4; j++)
-      cc[3 * i + j - 1] = cws[j][i] - cws[0][i];
+    // Fill the CC matrix with control points
+    for (int i = 0; i < 3; i++) {
+        for (int j = 1; j < 4; j++) {
+            CC.at<double>(i, j - 1) = cws[j][i] - cws[0][i];
+        }
+    }
 
-  cvInvert(&CC, &CC_inv, CV_SVD);
-  double * ci = cc_inv;
-  for(int i = 0; i < number_of_correspondences; i++) {
-    double * pi = pws + 3 * i;
-    double * a = alphas + 4 * i;
+    // Invert the CC matrix
+    cv::Mat CC_inv = CC.inv(cv::DECOMP_SVD);
 
-    for(int j = 0; j < 3; j++)
-      a[1 + j] =
-	ci[3 * j    ] * (pi[0] - cws[0][0]) +
-	ci[3 * j + 1] * (pi[1] - cws[0][1]) +
-	ci[3 * j + 2] * (pi[2] - cws[0][2]);
-    a[0] = 1.0f - a[1] - a[2] - a[3];
-  }
+    for (int i = 0; i < number_of_correspondences; i++) {
+        double* pi = pws + 3 * i; // Pointer to current point
+        double* a = alphas + 4 * i; // Pointer to barycentric coordinates
+
+        for (int j = 0; j < 3; j++) {
+            a[1 + j] =
+                CC_inv.at<double>(0, j) * (pi[0] - cws[0][0]) +
+                CC_inv.at<double>(1, j) * (pi[1] - cws[0][1]) +
+                CC_inv.at<double>(2, j) * (pi[2] - cws[0][2]);
+        }
+        a[0] = 1.0 - a[1] - a[2] - a[3];
+    }
 }
 
-void PnPsolver::fill_M(CvMat * M,
-		  const int row, const double * as, const double u, const double v)
+void PnPsolver::fill_M(cv::Mat* M, const int row, const double* as, const double u, const double v)
 {
-  double * M1 = M->data.db + row * 12;
-  double * M2 = M1 + 12;
+    int M1_row = row;
+    int M2_row = row + 1;
 
-  for(int i = 0; i < 4; i++) {
-    M1[3 * i    ] = as[i] * fu;
-    M1[3 * i + 1] = 0.0;
-    M1[3 * i + 2] = as[i] * (uc - u);
+    for (int i = 0; i < 4; i++) {
+        M->at<double>(M1_row, 3 * i) = as[i] * fu;
+        M->at<double>(M1_row, 3 * i + 1) = 0.0;
+        M->at<double>(M1_row, 3 * i + 2) = as[i] * (uc - u);
 
-    M2[3 * i    ] = 0.0;
-    M2[3 * i + 1] = as[i] * fv;
-    M2[3 * i + 2] = as[i] * (vc - v);
-  }
+        M->at<double>(M2_row, 3 * i) = 0.0;
+        M->at<double>(M2_row, 3 * i + 1) = as[i] * fv;
+        M->at<double>(M2_row, 3 * i + 2) = as[i] * (vc - v);
+    }
 }
 
 void PnPsolver::compute_ccs(const double * betas, const double * ut)
@@ -476,52 +476,54 @@ void PnPsolver::compute_pcs(void)
 
 double PnPsolver::compute_pose(double R[3][3], double t[3])
 {
-  choose_control_points();
-  compute_barycentric_coordinates();
+    // Step 1: Choose control points and compute barycentric coordinates
+    choose_control_points();
+    compute_barycentric_coordinates();
 
-  CvMat * M = cvCreateMat(2 * number_of_correspondences, 12, CV_64F);
+    // Step 2: Construct M matrix
+    cv::Mat M = cv::Mat::zeros(2 * number_of_correspondences, 12, CV_64F);
+    for (int i = 0; i < number_of_correspondences; i++) {
+        fill_M(&M, 2 * i, alphas + 4 * i, us[2 * i], us[2 * i + 1]);
+    }
 
-  for(int i = 0; i < number_of_correspondences; i++)
-    fill_M(M, 2 * i, alphas + 4 * i, us[2 * i], us[2 * i + 1]);
+    // Step 3: Compute MtM = M^T * M
+    cv::Mat MtM = M.t() * M;
 
-  double mtm[12 * 12], d[12], ut[12 * 12];
-  CvMat MtM = cvMat(12, 12, CV_64F, mtm);
-  CvMat D   = cvMat(12,  1, CV_64F, d);
-  CvMat Ut  = cvMat(12, 12, CV_64F, ut);
+    // Step 4: Perform SVD on MtM
+    cv::Mat eigenvalues, U, Vt;
+    cv::SVD::compute(MtM, eigenvalues, U, Vt);
 
-  cvMulTransposed(M, &MtM, 1);
-  cvSVD(&MtM, &D, &Ut, 0, CV_SVD_MODIFY_A | CV_SVD_U_T);
-  cvReleaseMat(&M);
+    // Step 5: Construct L_6x10 and Rho matrices
+    cv::Mat L_6x10 = cv::Mat::zeros(6, 10, CV_64F);
+    cv::Mat Rho = cv::Mat::zeros(6, 1, CV_64F);
 
-  double l_6x10[6 * 10], rho[6];
-  CvMat L_6x10 = cvMat(6, 10, CV_64F, l_6x10);
-  CvMat Rho    = cvMat(6,  1, CV_64F, rho);
+    compute_L_6x10(Vt, L_6x10); // Use V^T for computation
+    compute_rho(Rho.ptr<double>());
 
-  compute_L_6x10(ut, l_6x10);
-  compute_rho(rho);
+    double Betas[4][4], rep_errors[4];
+    double Rs[4][3][3], ts[4][3];
 
-  double Betas[4][4], rep_errors[4];
-  double Rs[4][3][3], ts[4][3];
+    // Step 6: Find and refine betas using Gauss-Newton
+    find_betas_approx_1(L_6x10, Rho, Betas[1]);
+    gauss_newton(L_6x10, Rho, Betas[1]);
+    rep_errors[1] = compute_R_and_t(Vt.ptr<double>(), Betas[1], Rs[1], ts[1]);
 
-  find_betas_approx_1(&L_6x10, &Rho, Betas[1]);
-  gauss_newton(&L_6x10, &Rho, Betas[1]);
-  rep_errors[1] = compute_R_and_t(ut, Betas[1], Rs[1], ts[1]);
+    find_betas_approx_2(L_6x10, Rho, Betas[2]);
+    gauss_newton(L_6x10, Rho, Betas[2]);
+    rep_errors[2] = compute_R_and_t(Vt.ptr<double>(), Betas[2], Rs[2], ts[2]);
 
-  find_betas_approx_2(&L_6x10, &Rho, Betas[2]);
-  gauss_newton(&L_6x10, &Rho, Betas[2]);
-  rep_errors[2] = compute_R_and_t(ut, Betas[2], Rs[2], ts[2]);
+    find_betas_approx_3(L_6x10, Rho, Betas[3]);
+    gauss_newton(L_6x10, Rho, Betas[3]);
+    rep_errors[3] = compute_R_and_t(Vt.ptr<double>(), Betas[3], Rs[3], ts[3]);
 
-  find_betas_approx_3(&L_6x10, &Rho, Betas[3]);
-  gauss_newton(&L_6x10, &Rho, Betas[3]);
-  rep_errors[3] = compute_R_and_t(ut, Betas[3], Rs[3], ts[3]);
+    // Step 7: Find the best solution with the lowest reprojection error
+    int N = 1;
+    if (rep_errors[2] < rep_errors[1]) N = 2;
+    if (rep_errors[3] < rep_errors[N]) N = 3;
 
-  int N = 1;
-  if (rep_errors[2] < rep_errors[1]) N = 2;
-  if (rep_errors[3] < rep_errors[N]) N = 3;
+    copy_R_and_t(Rs[N], ts[N], R, t);
 
-  copy_R_and_t(Rs[N], ts[N], R, t);
-
-  return rep_errors[N];
+    return rep_errors[N];
 }
 
 void PnPsolver::copy_R_and_t(const double R_src[3][3], const double t_src[3],
@@ -568,62 +570,70 @@ double PnPsolver::reprojection_error(const double R[3][3], const double t[3])
 
 void PnPsolver::estimate_R_and_t(double R[3][3], double t[3])
 {
-  double pc0[3], pw0[3];
+    double pc0[3] = {0.0, 0.0, 0.0};
+    double pw0[3] = {0.0, 0.0, 0.0};
 
-  pc0[0] = pc0[1] = pc0[2] = 0.0;
-  pw0[0] = pw0[1] = pw0[2] = 0.0;
+    // Compute centroids of `pcs` and `pws`
+    for (int i = 0; i < number_of_correspondences; i++) {
+        const double* pc = pcs + 3 * i;
+        const double* pw = pws + 3 * i;
 
-  for(int i = 0; i < number_of_correspondences; i++) {
-    const double * pc = pcs + 3 * i;
-    const double * pw = pws + 3 * i;
-
-    for(int j = 0; j < 3; j++) {
-      pc0[j] += pc[j];
-      pw0[j] += pw[j];
+        for (int j = 0; j < 3; j++) {
+            pc0[j] += pc[j];
+            pw0[j] += pw[j];
+        }
     }
-  }
-  for(int j = 0; j < 3; j++) {
-    pc0[j] /= number_of_correspondences;
-    pw0[j] /= number_of_correspondences;
-  }
 
-  double abt[3 * 3], abt_d[3], abt_u[3 * 3], abt_v[3 * 3];
-  CvMat ABt   = cvMat(3, 3, CV_64F, abt);
-  CvMat ABt_D = cvMat(3, 1, CV_64F, abt_d);
-  CvMat ABt_U = cvMat(3, 3, CV_64F, abt_u);
-  CvMat ABt_V = cvMat(3, 3, CV_64F, abt_v);
-
-  cvSetZero(&ABt);
-  for(int i = 0; i < number_of_correspondences; i++) {
-    double * pc = pcs + 3 * i;
-    double * pw = pws + 3 * i;
-
-    for(int j = 0; j < 3; j++) {
-      abt[3 * j    ] += (pc[j] - pc0[j]) * (pw[0] - pw0[0]);
-      abt[3 * j + 1] += (pc[j] - pc0[j]) * (pw[1] - pw0[1]);
-      abt[3 * j + 2] += (pc[j] - pc0[j]) * (pw[2] - pw0[2]);
+    for (int j = 0; j < 3; j++) {
+        pc0[j] /= number_of_correspondences;
+        pw0[j] /= number_of_correspondences;
     }
-  }
 
-  cvSVD(&ABt, &ABt_D, &ABt_U, &ABt_V, CV_SVD_MODIFY_A);
+    // Compute matrix ABt
+    cv::Mat ABt = cv::Mat::zeros(3, 3, CV_64F);
+    for (int i = 0; i < number_of_correspondences; i++) {
+        const double* pc = pcs + 3 * i;
+        const double* pw = pws + 3 * i;
 
-  for(int i = 0; i < 3; i++)
-    for(int j = 0; j < 3; j++)
-      R[i][j] = dot(abt_u + 3 * i, abt_v + 3 * j);
+        for (int j = 0; j < 3; j++) {
+            ABt.at<double>(j, 0) += (pc[j] - pc0[j]) * (pw[0] - pw0[0]);
+            ABt.at<double>(j, 1) += (pc[j] - pc0[j]) * (pw[1] - pw0[1]);
+            ABt.at<double>(j, 2) += (pc[j] - pc0[j]) * (pw[2] - pw0[2]);
+        }
+    }
 
-  const double det =
-    R[0][0] * R[1][1] * R[2][2] + R[0][1] * R[1][2] * R[2][0] + R[0][2] * R[1][0] * R[2][1] -
-    R[0][2] * R[1][1] * R[2][0] - R[0][1] * R[1][0] * R[2][2] - R[0][0] * R[1][2] * R[2][1];
+    // Perform SVD on ABt
+    cv::Mat W, U, Vt;
+    cv::SVD::compute(ABt, W, U, Vt);
 
-  if (det < 0) {
-    R[2][0] = -R[2][0];
-    R[2][1] = -R[2][1];
-    R[2][2] = -R[2][2];
-  }
+    // Compute R = U * Vt
+    cv::Mat Rt = U * Vt;
+    cv::Mat R_mat = Rt.t(); // Transpose to get R in the correct orientation
 
-  t[0] = pc0[0] - dot(R[0], pw0);
-  t[1] = pc0[1] - dot(R[1], pw0);
-  t[2] = pc0[2] - dot(R[2], pw0);
+    // Copy R_mat to the output R
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            R[i][j] = R_mat.at<double>(i, j);
+        }
+    }
+
+    // Ensure R has a positive determinant
+    const double det = cv::determinant(R_mat);
+    if (det < 0) {
+        for (int j = 0; j < 3; j++) {
+            R[2][j] = -R[2][j];
+        }
+    }
+
+    // Compute t = pc0 - R * pw0
+    cv::Mat pc0_mat = cv::Mat(3, 1, CV_64F, pc0);
+    cv::Mat pw0_mat = cv::Mat(3, 1, CV_64F, pw0);
+    cv::Mat t_mat = pc0_mat - R_mat * pw0_mat;
+
+    // Copy t_mat to the output t
+    for (int i = 0; i < 3; i++) {
+        t[i] = t_mat.at<double>(i, 0);
+    }
 }
 
 void PnPsolver::print_pose(const double R[3][3], const double t[3])
@@ -664,139 +674,178 @@ double PnPsolver::compute_R_and_t(const double * ut, const double * betas,
 // betas10        = [B11 B12 B22 B13 B23 B33 B14 B24 B34 B44]
 // betas_approx_1 = [B11 B12     B13         B14]
 
-void PnPsolver::find_betas_approx_1(const CvMat * L_6x10, const CvMat * Rho,
-			       double * betas)
+void PnPsolver::find_betas_approx_1(const cv::Mat& L_6x10, const cv::Mat& Rho, double* betas)
 {
-  double l_6x4[6 * 4], b4[4];
-  CvMat L_6x4 = cvMat(6, 4, CV_64F, l_6x4);
-  CvMat B4    = cvMat(4, 1, CV_64F, b4);
+    // Create reduced L_6x4 and solution vector B4
+    cv::Mat L_6x4 = cv::Mat(6, 4, CV_64F);
+    cv::Mat B4 = cv::Mat(4, 1, CV_64F);
 
-  for(int i = 0; i < 6; i++) {
-    cvmSet(&L_6x4, i, 0, cvmGet(L_6x10, i, 0));
-    cvmSet(&L_6x4, i, 1, cvmGet(L_6x10, i, 1));
-    cvmSet(&L_6x4, i, 2, cvmGet(L_6x10, i, 3));
-    cvmSet(&L_6x4, i, 3, cvmGet(L_6x10, i, 6));
-  }
+    // Fill L_6x4 from L_6x10
+    for (int i = 0; i < 6; i++) {
+        L_6x4.at<double>(i, 0) = L_6x10.at<double>(i, 0);
+        L_6x4.at<double>(i, 1) = L_6x10.at<double>(i, 1);
+        L_6x4.at<double>(i, 2) = L_6x10.at<double>(i, 3);
+        L_6x4.at<double>(i, 3) = L_6x10.at<double>(i, 6);
+    }
 
-  cvSolve(&L_6x4, Rho, &B4, CV_SVD);
+    // Solve the linear system L_6x4 * B4 = Rho
+    cv::solve(L_6x4, Rho, B4, cv::DECOMP_SVD);
 
-  if (b4[0] < 0) {
-    betas[0] = sqrt(-b4[0]);
-    betas[1] = -b4[1] / betas[0];
-    betas[2] = -b4[2] / betas[0];
-    betas[3] = -b4[3] / betas[0];
-  } else {
-    betas[0] = sqrt(b4[0]);
-    betas[1] = b4[1] / betas[0];
-    betas[2] = b4[2] / betas[0];
-    betas[3] = b4[3] / betas[0];
-  }
+    // Extract the solution from B4
+    double b4[4];
+    for (int i = 0; i < 4; i++) {
+        b4[i] = B4.at<double>(i, 0);
+    }
+
+    // Compute betas based on the sign of b4[0]
+    if (b4[0] < 0) {
+        betas[0] = sqrt(-b4[0]);
+        betas[1] = -b4[1] / betas[0];
+        betas[2] = -b4[2] / betas[0];
+        betas[3] = -b4[3] / betas[0];
+    } else {
+        betas[0] = sqrt(b4[0]);
+        betas[1] = b4[1] / betas[0];
+        betas[2] = b4[2] / betas[0];
+        betas[3] = b4[3] / betas[0];
+    }
 }
 
 // betas10        = [B11 B12 B22 B13 B23 B33 B14 B24 B34 B44]
 // betas_approx_2 = [B11 B12 B22                            ]
 
-void PnPsolver::find_betas_approx_2(const CvMat * L_6x10, const CvMat * Rho,
-			       double * betas)
+void PnPsolver::find_betas_approx_2(const cv::Mat& L_6x10, const cv::Mat& Rho, double* betas)
 {
-  double l_6x3[6 * 3], b3[3];
-  CvMat L_6x3  = cvMat(6, 3, CV_64F, l_6x3);
-  CvMat B3     = cvMat(3, 1, CV_64F, b3);
+    // Create reduced L_6x3 and solution vector B3
+    cv::Mat L_6x3 = cv::Mat(6, 3, CV_64F);
+    cv::Mat B3 = cv::Mat(3, 1, CV_64F);
 
-  for(int i = 0; i < 6; i++) {
-    cvmSet(&L_6x3, i, 0, cvmGet(L_6x10, i, 0));
-    cvmSet(&L_6x3, i, 1, cvmGet(L_6x10, i, 1));
-    cvmSet(&L_6x3, i, 2, cvmGet(L_6x10, i, 2));
-  }
+    // Fill L_6x3 from L_6x10
+    for (int i = 0; i < 6; i++) {
+        L_6x3.at<double>(i, 0) = L_6x10.at<double>(i, 0);
+        L_6x3.at<double>(i, 1) = L_6x10.at<double>(i, 1);
+        L_6x3.at<double>(i, 2) = L_6x10.at<double>(i, 2);
+    }
 
-  cvSolve(&L_6x3, Rho, &B3, CV_SVD);
+    // Solve the linear system L_6x3 * B3 = Rho
+    cv::solve(L_6x3, Rho, B3, cv::DECOMP_SVD);
 
-  if (b3[0] < 0) {
-    betas[0] = sqrt(-b3[0]);
-    betas[1] = (b3[2] < 0) ? sqrt(-b3[2]) : 0.0;
-  } else {
-    betas[0] = sqrt(b3[0]);
-    betas[1] = (b3[2] > 0) ? sqrt(b3[2]) : 0.0;
-  }
+    // Extract the solution from B3
+    double b3[3];
+    for (int i = 0; i < 3; i++) {
+        b3[i] = B3.at<double>(i, 0);
+    }
 
-  if (b3[1] < 0) betas[0] = -betas[0];
+    // Compute betas based on the signs of b3[0] and b3[2]
+    if (b3[0] < 0) {
+        betas[0] = sqrt(-b3[0]);
+        betas[1] = (b3[2] < 0) ? sqrt(-b3[2]) : 0.0;
+    } else {
+        betas[0] = sqrt(b3[0]);
+        betas[1] = (b3[2] > 0) ? sqrt(b3[2]) : 0.0;
+    }
 
-  betas[2] = 0.0;
-  betas[3] = 0.0;
+    // Adjust the sign of betas[0] based on b3[1]
+    if (b3[1] < 0) {
+        betas[0] = -betas[0];
+    }
+
+    // Set unused betas to 0
+    betas[2] = 0.0;
+    betas[3] = 0.0;
 }
+
 
 // betas10        = [B11 B12 B22 B13 B23 B33 B14 B24 B34 B44]
 // betas_approx_3 = [B11 B12 B22 B13 B23                    ]
 
-void PnPsolver::find_betas_approx_3(const CvMat * L_6x10, const CvMat * Rho,
-			       double * betas)
+void PnPsolver::find_betas_approx_3(const cv::Mat& L_6x10, const cv::Mat& Rho, double* betas)
 {
-  double l_6x5[6 * 5], b5[5];
-  CvMat L_6x5 = cvMat(6, 5, CV_64F, l_6x5);
-  CvMat B5    = cvMat(5, 1, CV_64F, b5);
+    // Create reduced L_6x5 and solution vector B5
+    cv::Mat L_6x5 = cv::Mat(6, 5, CV_64F);
+    cv::Mat B5 = cv::Mat(5, 1, CV_64F);
 
-  for(int i = 0; i < 6; i++) {
-    cvmSet(&L_6x5, i, 0, cvmGet(L_6x10, i, 0));
-    cvmSet(&L_6x5, i, 1, cvmGet(L_6x10, i, 1));
-    cvmSet(&L_6x5, i, 2, cvmGet(L_6x10, i, 2));
-    cvmSet(&L_6x5, i, 3, cvmGet(L_6x10, i, 3));
-    cvmSet(&L_6x5, i, 4, cvmGet(L_6x10, i, 4));
-  }
+    // Fill L_6x5 from L_6x10
+    for (int i = 0; i < 6; i++) {
+        L_6x5.at<double>(i, 0) = L_6x10.at<double>(i, 0);
+        L_6x5.at<double>(i, 1) = L_6x10.at<double>(i, 1);
+        L_6x5.at<double>(i, 2) = L_6x10.at<double>(i, 2);
+        L_6x5.at<double>(i, 3) = L_6x10.at<double>(i, 3);
+        L_6x5.at<double>(i, 4) = L_6x10.at<double>(i, 4);
+    }
 
-  cvSolve(&L_6x5, Rho, &B5, CV_SVD);
+    // Solve the linear system L_6x5 * B5 = Rho
+    cv::solve(L_6x5, Rho, B5, cv::DECOMP_SVD);
 
-  if (b5[0] < 0) {
-    betas[0] = sqrt(-b5[0]);
-    betas[1] = (b5[2] < 0) ? sqrt(-b5[2]) : 0.0;
-  } else {
-    betas[0] = sqrt(b5[0]);
-    betas[1] = (b5[2] > 0) ? sqrt(b5[2]) : 0.0;
-  }
-  if (b5[1] < 0) betas[0] = -betas[0];
-  betas[2] = b5[3] / betas[0];
-  betas[3] = 0.0;
+    // Extract the solution from B5
+    double b5[5];
+    for (int i = 0; i < 5; i++) {
+        b5[i] = B5.at<double>(i, 0);
+    }
+
+    // Compute betas based on the signs of b5[0] and b5[2]
+    if (b5[0] < 0) {
+        betas[0] = sqrt(-b5[0]);
+        betas[1] = (b5[2] < 0) ? sqrt(-b5[2]) : 0.0;
+    } else {
+        betas[0] = sqrt(b5[0]);
+        betas[1] = (b5[2] > 0) ? sqrt(b5[2]) : 0.0;
+    }
+
+    // Adjust the sign of betas[0] based on b5[1]
+    if (b5[1] < 0) {
+        betas[0] = -betas[0];
+    }
+
+    // Compute betas[2] and set betas[3]
+    betas[2] = b5[3] / betas[0];
+    betas[3] = 0.0;
 }
 
-void PnPsolver::compute_L_6x10(const double * ut, double * l_6x10)
+
+void PnPsolver::compute_L_6x10(const cv::Mat& ut, cv::Mat& l_6x10)
 {
-  const double * v[4];
+    // Ensure `ut` is a 12x12 matrix
+    CV_Assert(ut.rows == 12 && ut.cols == 12 && ut.type() == CV_64F);
 
-  v[0] = ut + 12 * 11;
-  v[1] = ut + 12 * 10;
-  v[2] = ut + 12 *  9;
-  v[3] = ut + 12 *  8;
+    // Ensure `l_6x10` is a 6x10 matrix
+    l_6x10 = cv::Mat::zeros(6, 10, CV_64F);
 
-  double dv[4][6][3];
-
-  for(int i = 0; i < 4; i++) {
-    int a = 0, b = 1;
-    for(int j = 0; j < 6; j++) {
-      dv[i][j][0] = v[i][3 * a    ] - v[i][3 * b];
-      dv[i][j][1] = v[i][3 * a + 1] - v[i][3 * b + 1];
-      dv[i][j][2] = v[i][3 * a + 2] - v[i][3 * b + 2];
-
-      b++;
-      if (b > 3) {
-	a++;
-	b = a + 1;
-      }
+    // Extract the last four rows (v[0], v[1], v[2], v[3]) from `ut`
+    std::vector<cv::Mat> v(4);
+    for (int i = 0; i < 4; i++) {
+        v[i] = ut.row(11 - i).reshape(1, 1); // Extract each row as a 1x12 vector
     }
-  }
 
-  for(int i = 0; i < 6; i++) {
-    double * row = l_6x10 + 10 * i;
+    // Compute the differences (dv) between pairs of points in v
+    cv::Mat dv[4][6]; // dv[i][j] stores a 1x3 difference vector
 
-    row[0] =        dot(dv[0][i], dv[0][i]);
-    row[1] = 2.0f * dot(dv[0][i], dv[1][i]);
-    row[2] =        dot(dv[1][i], dv[1][i]);
-    row[3] = 2.0f * dot(dv[0][i], dv[2][i]);
-    row[4] = 2.0f * dot(dv[1][i], dv[2][i]);
-    row[5] =        dot(dv[2][i], dv[2][i]);
-    row[6] = 2.0f * dot(dv[0][i], dv[3][i]);
-    row[7] = 2.0f * dot(dv[1][i], dv[3][i]);
-    row[8] = 2.0f * dot(dv[2][i], dv[3][i]);
-    row[9] =        dot(dv[3][i], dv[3][i]);
-  }
+    for (int i = 0; i < 4; i++) {
+        int a = 0, b = 1;
+        for (int j = 0; j < 6; j++) {
+            dv[i][j] = v[i].colRange(3 * a, 3 * (a + 1)) - v[i].colRange(3 * b, 3 * (b + 1));
+
+            b++;
+            if (b > 3) {
+                a++;
+                b = a + 1;
+            }
+        }
+    }
+
+    // Fill the L_6x10 matrix
+    for (int i = 0; i < 6; i++) {
+        l_6x10.at<double>(i, 0) = dv[0][i].dot(dv[0][i]); // ||dv[0][i]||^2
+        l_6x10.at<double>(i, 1) = 2.0 * dv[0][i].dot(dv[1][i]); // 2 * dot(dv[0][i], dv[1][i])
+        l_6x10.at<double>(i, 2) = dv[1][i].dot(dv[1][i]); // ||dv[1][i]||^2
+        l_6x10.at<double>(i, 3) = 2.0 * dv[0][i].dot(dv[2][i]); // 2 * dot(dv[0][i], dv[2][i])
+        l_6x10.at<double>(i, 4) = 2.0 * dv[1][i].dot(dv[2][i]); // 2 * dot(dv[1][i], dv[2][i])
+        l_6x10.at<double>(i, 5) = dv[2][i].dot(dv[2][i]); // ||dv[2][i]||^2
+        l_6x10.at<double>(i, 6) = 2.0 * dv[0][i].dot(dv[3][i]); // 2 * dot(dv[0][i], dv[3][i])
+        l_6x10.at<double>(i, 7) = 2.0 * dv[1][i].dot(dv[3][i]); // 2 * dot(dv[1][i], dv[3][i])
+        l_6x10.at<double>(i, 8) = 2.0 * dv[2][i].dot(dv[3][i]); // 2 * dot(dv[2][i], dv[3][i])
+        l_6x10.at<double>(i, 9) = dv[3][i].dot(dv[3][i]); // ||dv[3][i]||^2
+    }
 }
 
 void PnPsolver::compute_rho(double * rho)
@@ -809,147 +858,124 @@ void PnPsolver::compute_rho(double * rho)
   rho[5] = dist2(cws[2], cws[3]);
 }
 
-void PnPsolver::compute_A_and_b_gauss_newton(const double * l_6x10, const double * rho,
-					double betas[4], CvMat * A, CvMat * b)
+void PnPsolver::compute_A_and_b_gauss_newton(const cv::Mat& L_6x10, const cv::Mat& Rho,
+                                             double betas[4], cv::Mat& A, cv::Mat& b)
 {
-  for(int i = 0; i < 6; i++) {
-    const double * rowL = l_6x10 + i * 10;
-    double * rowA = A->data.db + i * 4;
+    // Ensure input dimensions
+    CV_Assert(L_6x10.rows == 6 && L_6x10.cols == 10 && L_6x10.type() == CV_64F);
+    CV_Assert(Rho.rows == 6 && Rho.cols == 1 && Rho.type() == CV_64F);
 
-    rowA[0] = 2 * rowL[0] * betas[0] +     rowL[1] * betas[1] +     rowL[3] * betas[2] +     rowL[6] * betas[3];
-    rowA[1] =     rowL[1] * betas[0] + 2 * rowL[2] * betas[1] +     rowL[4] * betas[2] +     rowL[7] * betas[3];
-    rowA[2] =     rowL[3] * betas[0] +     rowL[4] * betas[1] + 2 * rowL[5] * betas[2] +     rowL[8] * betas[3];
-    rowA[3] =     rowL[6] * betas[0] +     rowL[7] * betas[1] +     rowL[8] * betas[2] + 2 * rowL[9] * betas[3];
+    // Resize A and b to proper dimensions if not already
+    A = cv::Mat::zeros(6, 4, CV_64F);
+    b = cv::Mat::zeros(6, 1, CV_64F);
 
-    cvmSet(b, i, 0, rho[i] -
-	   (
-	    rowL[0] * betas[0] * betas[0] +
-	    rowL[1] * betas[0] * betas[1] +
-	    rowL[2] * betas[1] * betas[1] +
-	    rowL[3] * betas[0] * betas[2] +
-	    rowL[4] * betas[1] * betas[2] +
-	    rowL[5] * betas[2] * betas[2] +
-	    rowL[6] * betas[0] * betas[3] +
-	    rowL[7] * betas[1] * betas[3] +
-	    rowL[8] * betas[2] * betas[3] +
-	    rowL[9] * betas[3] * betas[3]
-	    ));
-  }
-}
+    for (int i = 0; i < 6; i++) {
+        // Access row i of L_6x10
+        const double* rowL = L_6x10.ptr<double>(i);
 
-void PnPsolver::gauss_newton(const CvMat * L_6x10, const CvMat * Rho,
-			double betas[4])
-{
-  const int iterations_number = 5;
+        // Populate the A matrix
+        A.at<double>(i, 0) = 2 * rowL[0] * betas[0] + rowL[1] * betas[1] + rowL[3] * betas[2] + rowL[6] * betas[3];
+        A.at<double>(i, 1) = rowL[1] * betas[0] + 2 * rowL[2] * betas[1] + rowL[4] * betas[2] + rowL[7] * betas[3];
+        A.at<double>(i, 2) = rowL[3] * betas[0] + rowL[4] * betas[1] + 2 * rowL[5] * betas[2] + rowL[8] * betas[3];
+        A.at<double>(i, 3) = rowL[6] * betas[0] + rowL[7] * betas[1] + rowL[8] * betas[2] + 2 * rowL[9] * betas[3];
 
-  double a[6*4], b[6], x[4];
-  CvMat A = cvMat(6, 4, CV_64F, a);
-  CvMat B = cvMat(6, 1, CV_64F, b);
-  CvMat X = cvMat(4, 1, CV_64F, x);
-
-  for(int k = 0; k < iterations_number; k++) {
-    compute_A_and_b_gauss_newton(L_6x10->data.db, Rho->data.db,
-				 betas, &A, &B);
-    qr_solve(&A, &B, &X);
-
-    for(int i = 0; i < 4; i++)
-      betas[i] += x[i];
-  }
-}
-
-void PnPsolver::qr_solve(CvMat * A, CvMat * b, CvMat * X)
-{
-  static int max_nr = 0;
-  static double * A1, * A2;
-
-  const int nr = A->rows;
-  const int nc = A->cols;
-
-  if (max_nr != 0 && max_nr < nr) {
-    delete [] A1;
-    delete [] A2;
-  }
-  if (max_nr < nr) {
-    max_nr = nr;
-    A1 = new double[nr];
-    A2 = new double[nr];
-  }
-
-  double * pA = A->data.db, * ppAkk = pA;
-  for(int k = 0; k < nc; k++) {
-    double * ppAik = ppAkk, eta = fabs(*ppAik);
-    for(int i = k + 1; i < nr; i++) {
-      double elt = fabs(*ppAik);
-      if (eta < elt) eta = elt;
-      ppAik += nc;
+        // Populate the b vector
+        b.at<double>(i, 0) = Rho.at<double>(i, 0) -
+            (
+                rowL[0] * betas[0] * betas[0] +
+                rowL[1] * betas[0] * betas[1] +
+                rowL[2] * betas[1] * betas[1] +
+                rowL[3] * betas[0] * betas[2] +
+                rowL[4] * betas[1] * betas[2] +
+                rowL[5] * betas[2] * betas[2] +
+                rowL[6] * betas[0] * betas[3] +
+                rowL[7] * betas[1] * betas[3] +
+                rowL[8] * betas[2] * betas[3] +
+                rowL[9] * betas[3] * betas[3]
+            );
     }
-
-    if (eta == 0) {
-      A1[k] = A2[k] = 0.0;
-      cerr << "God damnit, A is singular, this shouldn't happen." << endl;
-      return;
-    } else {
-      double * ppAik = ppAkk, sum = 0.0, inv_eta = 1. / eta;
-      for(int i = k; i < nr; i++) {
-	*ppAik *= inv_eta;
-	sum += *ppAik * *ppAik;
-	ppAik += nc;
-      }
-      double sigma = sqrt(sum);
-      if (*ppAkk < 0)
-	sigma = -sigma;
-      *ppAkk += sigma;
-      A1[k] = sigma * *ppAkk;
-      A2[k] = -eta * sigma;
-      for(int j = k + 1; j < nc; j++) {
-	double * ppAik = ppAkk, sum = 0;
-	for(int i = k; i < nr; i++) {
-	  sum += *ppAik * ppAik[j - k];
-	  ppAik += nc;
-	}
-	double tau = sum / A1[k];
-	ppAik = ppAkk;
-	for(int i = k; i < nr; i++) {
-	  ppAik[j - k] -= tau * *ppAik;
-	  ppAik += nc;
-	}
-      }
-    }
-    ppAkk += nc + 1;
-  }
-
-  // b <- Qt b
-  double * ppAjj = pA, * pb = b->data.db;
-  for(int j = 0; j < nc; j++) {
-    double * ppAij = ppAjj, tau = 0;
-    for(int i = j; i < nr; i++)	{
-      tau += *ppAij * pb[i];
-      ppAij += nc;
-    }
-    tau /= A1[j];
-    ppAij = ppAjj;
-    for(int i = j; i < nr; i++) {
-      pb[i] -= tau * *ppAij;
-      ppAij += nc;
-    }
-    ppAjj += nc + 1;
-  }
-
-  // X = R-1 b
-  double * pX = X->data.db;
-  pX[nc - 1] = pb[nc - 1] / A2[nc - 1];
-  for(int i = nc - 2; i >= 0; i--) {
-    double * ppAij = pA + i * nc + (i + 1), sum = 0;
-
-    for(int j = i + 1; j < nc; j++) {
-      sum += *ppAij * pX[j];
-      ppAij++;
-    }
-    pX[i] = (pb[i] - sum) / A2[i];
-  }
 }
 
 
+void PnPsolver::gauss_newton(const cv::Mat& L_6x10, const cv::Mat& Rho, double betas[4])
+{
+    const int iterations_number = 5;
+
+    // Temporary variables for the Gauss-Newton iteration
+    cv::Mat A = cv::Mat::zeros(6, 4, CV_64F); // 6x4 matrix
+    cv::Mat B = cv::Mat::zeros(6, 1, CV_64F); // 6x1 matrix
+    cv::Mat X = cv::Mat::zeros(4, 1, CV_64F); // 4x1 matrix (solution)
+
+    for (int k = 0; k < iterations_number; k++) {
+        // Compute A and B for the current iteration
+        compute_A_and_b_gauss_newton(L_6x10, Rho, betas, A, B);
+
+        // Solve the linear system A * X = B using QR decomposition
+        cv::solve(A, B, X, cv::DECOMP_QR);
+
+        // Update betas using the solution X
+        for (int i = 0; i < 4; i++) {
+            betas[i] += X.at<double>(i, 0);
+        }
+    }
+}
+
+
+void PnPsolver::qr_solve(const cv::Mat& A, const cv::Mat& b, cv::Mat& X)
+{
+    // Ensure the input matrix dimensions are valid
+    CV_Assert(A.rows == b.rows && A.cols <= A.rows && A.type() == CV_64F && b.type() == CV_64F);
+
+    const int nr = A.rows; // Number of rows
+    const int nc = A.cols; // Number of columns
+
+    // Clone A to work with it directly for in-place transformations
+    cv::Mat R = A.clone();
+    cv::Mat Q = cv::Mat::eye(nr, nr, CV_64F); // Initialize Q as identity matrix
+
+    // Householder QR decomposition
+    for (int k = 0; k < nc; k++) {
+        // Extract the k-th column vector starting from row k
+        cv::Mat x = R.col(k).rowRange(k, nr);
+
+        // Compute the norm and handle numerical stability
+        double norm_x = cv::norm(x, cv::NORM_L2);
+        if (norm_x == 0) {
+            throw std::runtime_error("Matrix A is singular, QR decomposition failed.");
+        }
+
+        // Compute Householder vector
+        double alpha = (x.at<double>(0, 0) >= 0) ? -norm_x : norm_x;
+        x.at<double>(0, 0) -= alpha;
+
+        // Normalize the vector
+        x /= cv::norm(x, cv::NORM_L2);
+
+        // Update R and Q matrices
+        cv::Mat H = cv::Mat::eye(nr, nr, CV_64F);
+        cv::Mat Hk = H.colRange(k, nr).rowRange(k, nr);
+        Hk -= 2.0 * (x * x.t());
+
+        R = H * R;
+        Q = Q * H;
+    }
+
+    // Ensure R is upper triangular
+    R = R.rowRange(0, nc).colRange(0, nc);
+
+    // Compute Qt * b
+    cv::Mat Qt_b = Q.t() * b;
+
+    // Perform explicit back substitution to solve R * X = Qt * b
+    X = cv::Mat::zeros(nc, 1, CV_64F);
+    for (int i = nc - 1; i >= 0; i--) {
+        double sum = 0.0;
+        for (int j = i + 1; j < nc; j++) {
+            sum += R.at<double>(i, j) * X.at<double>(j, 0);
+        }
+        X.at<double>(i, 0) = (Qt_b.at<double>(i, 0) - sum) / R.at<double>(i, i);
+    }
+}
 
 void PnPsolver::relative_error(double & rot_err, double & transl_err,
 			  const double Rtrue[3][3], const double ttrue[3],

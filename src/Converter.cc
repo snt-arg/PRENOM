@@ -100,14 +100,10 @@ cv::Mat Converter::toCvSE3(const Eigen::Matrix<double,3,3> &R, const Eigen::Matr
     for(int i=0;i<3;i++)
     {
         for(int j=0;j<3;j++)
-        {
             cvMat.at<float>(i,j)=R(i,j);
-        }
     }
     for(int i=0;i<3;i++)
-    {
         cvMat.at<float>(i,3)=t(i);
-    }
 
     return cvMat.clone();
 }

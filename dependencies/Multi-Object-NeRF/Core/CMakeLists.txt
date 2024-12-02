@@ -100,7 +100,7 @@ find_package(Eigen3 REQUIRED)
 ##########
 # OpenCV #
 ##########
-find_package(OpenCV 3.0 REQUIRED)
+find_package(OpenCV 4.2 REQUIRED)
 
 ###############################################################################
 # Program

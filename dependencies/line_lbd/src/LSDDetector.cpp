@@ -155,7 +155,7 @@ void LSDDetector::detectImpl( const Mat& imageSrc, std::vector<KeyLine>& keyline
 {
   cv::Mat image;
   if( imageSrc.channels() != 1 )
-    cvtColor( imageSrc, image, COLOR_BGR2GRAY );
+    cvtColor( imageSrc, image, cv::COLOR_BGR2GRAY );
   else
     image = imageSrc.clone();
 

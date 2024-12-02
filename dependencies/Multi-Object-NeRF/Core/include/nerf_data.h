@@ -3,7 +3,7 @@
 #include <Eigen/Core>
 #include <Eigen/Dense>
 #include <mutex>
-#include <opencv/cv.hpp>
+#include <opencv2/opencv.hpp>
 using namespace std;
 
 namespace nerf{

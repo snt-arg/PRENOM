@@ -23,7 +23,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 ##########
 # OpenCV #
 ##########
-find_package(OpenCV 3.0 QUIET)
+find_package(OpenCV 4.2 QUIET)
 if(NOT OpenCV_FOUND)
    find_package(OpenCV 2.4.3 QUIET)
    if(NOT OpenCV_FOUND)

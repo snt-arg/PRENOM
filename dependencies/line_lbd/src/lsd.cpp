@@ -1160,13 +1160,9 @@ void LineSegmentDetectorImpl::drawSegments(InputOutputArray _image, InputArray l
 
     Mat gray;
     if (_image.channels() == 1)
-    {
         gray = _image.getMatRef();
-    }
     else if (_image.channels() == 3)
-    {
-        cvtColor(_image, gray, CV_BGR2GRAY);
-    }
+        cvtColor(_image, gray, cv::COLOR_BGR2GRAY);
 
     // Create a 3 channel image in order to draw colored lines
     std::vector<Mat> planes;
