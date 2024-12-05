@@ -149,10 +149,13 @@ void viewer::DrawObjects(std::shared_ptr<nerf::NeRF> pNeRF, bool showBbox, bool 
     Eigen::Matrix4f pose = pNeRF->GetObjTow().inverse();
     glMultMatrixf(pose.data());
     nerf::BoundingBox Bbox = pNeRF->GetBoundingBox();
-    float a1 = Bbox.max[0];
-    float a2 = Bbox.max[1];
-    float a3 = Bbox.max[2];
-    float linewidth = 1;
+    const float a1 = Bbox.min[0];
+    const float a2 = Bbox.min[1];
+    const float a3 = Bbox.min[2];
+    const float a4 = Bbox.max[0];
+    const float a5 = Bbox.max[1];
+    const float a6 = Bbox.max[2];
+    const float linewidth = 1;
     
     if(showBbox)
     {
@@ -160,41 +163,41 @@ void viewer::DrawObjects(std::shared_ptr<nerf::NeRF> pNeRF, bool showBbox, bool 
         glBegin(GL_LINES);
         glColor3f(1.0f, 0.0f, 0.0f);
         //1
-        glVertex3f(a1, a2, a3);
-        glVertex3f(-a1, a2, a3);
+        glVertex3f(a4, a5, a6);
+        glVertex3f(a1, a5, a6);
         //2
-        glVertex3f(-a1, a2, a3);
-        glVertex3f(-a1, -a2, a3);
+        glVertex3f(a1, a5, a6);
+        glVertex3f(a1, a2, a6);
         //3
-        glVertex3f(-a1, -a2, a3);
-        glVertex3f(a1, -a2, a3);
+        glVertex3f(a1, a2, a6);
+        glVertex3f(a4, a2, a6);
         //4
-        glVertex3f(a1, -a2, a3);
-        glVertex3f(a1, a2, a3);
+        glVertex3f(a4, a2, a6);
+        glVertex3f(a4, a5, a6);
         //5
-        glVertex3f(a1, a2, -a3);
-        glVertex3f(-a1, a2, -a3);
+        glVertex3f(a4, a5, a3);
+        glVertex3f(a1, a5, a3);
         //6
-        glVertex3f(-a1, a2, -a3);
-        glVertex3f(-a1, -a2, -a3);
-        //7
-        glVertex3f(-a1, -a2, -a3);
-        glVertex3f(a1, -a2, -a3);
-        //8
-        glVertex3f(a1, -a2, -a3);
-        glVertex3f(a1, a2, -a3);
-        //1
+        glVertex3f(a1, a5, a3);
         glVertex3f(a1, a2, a3);
-        glVertex3f(a1, a2, -a3);
+        //7
+        glVertex3f(a1, a2, a3);
+        glVertex3f(a4, a2, a3);
+        //8
+        glVertex3f(a4, a2, a3);
+        glVertex3f(a4, a5, a3);
+        //1
+        glVertex3f(a4, a5, a6);
+        glVertex3f(a4, a5, a3);
         //2
-        glVertex3f(-a1, a2, a3);
-        glVertex3f(-a1, a2, -a3);
+        glVertex3f(a1, a5, a6);
+        glVertex3f(a1, a5, a3);
         //3
-        glVertex3f(-a1, -a2, a3);
-        glVertex3f(-a1, -a2, -a3);
+        glVertex3f(a1, a2, a6);
+        glVertex3f(a1, a2, a3);
         //4
-        glVertex3f(a1, -a2, a3);
-        glVertex3f(a1, -a2, -a3);
+        glVertex3f(a4, a2, a6);
+        glVertex3f(a4, a2, a3);
         glEnd();
 
         //XYZ Coordinate
@@ -288,7 +291,7 @@ int main(int argc, char** argv)
 {
 
     cout<<"......Multi-Object NeRF Offline......"<<endl;
-    if(argc != 4)
+    if(argc != 5)
     {
         cerr << "param error..."<<endl<<"./build/OfflineNeRF ./Core/configs/base.json dataset_path UseGTdepth"<<endl;
         return 0;
@@ -297,6 +300,7 @@ int main(int argc, char** argv)
     string configPath = string(argv[1]);
     string datasetPath = string(argv[2]);
     int UseGTdepth = stoi(string(argv[3]));
+    const int num_objects = stoi(string(argv[4]));
     if(UseGTdepth != 0 && UseGTdepth != 1)
     {
         cerr << "UseGTdepth param error..."<<endl<<"0 or 1"<<endl;
@@ -312,8 +316,8 @@ int main(int argc, char** argv)
     }   
 
     //Read training information for each object
-    vector<string> vObjPath(4);
-    for(int i=0;i<4;i++)
+    vector<string> vObjPath(num_objects);
+    for(int i=0;i<num_objects;i++)
     {
         vObjPath[i] = objPath + "/" + to_string(i) + ".txt";
     }

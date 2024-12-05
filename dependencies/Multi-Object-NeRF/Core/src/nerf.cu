@@ -73,9 +73,9 @@ bool NeRF::ReadBboxOffline(const string path)
     ss << s;
     ss >> mClass;
     mInstanceId = uint8_t(mClass);
-    //tx,ty,tz,x,y,z,w,a1,a2,a3
-    float num[10];
-    for(int i=0;i<10;i++)
+    //tx,ty,tz,x,y,z,w,a1,a2,a3,a4,a5,a6
+    float num[13];
+    for(int i=0;i<13;i++)
     {
         ss >> num[i];
     }
@@ -88,8 +88,8 @@ bool NeRF::ReadBboxOffline(const string path)
     Two.col(3).head<3>() = t;
     mObjTow = Eigen::Matrix4f::Identity();
     mObjTow = Two.inverse();
-    mBoundingBox.min = Eigen::Vector3f(-num[7],-num[8],-num[9]);
-    mBoundingBox.max = Eigen::Vector3f(num[7],num[8],num[9]);
+    mBoundingBox.min = Eigen::Vector3f(num[7],num[8],num[9]);
+    mBoundingBox.max = Eigen::Vector3f(num[10],num[11],num[12]);
 
     //2D bbox
     FrameIdAndBbox item;
