@@ -316,6 +316,32 @@ __global__ void output_half_to_float(uint32_t points, uint32_t outwidth, float* 
     density[i] = float(network_output[i * outwidth + 3]);
 }
 
+__global__ void subtract(
+	const uint32_t n_elements,
+	const precision_t* arg1,
+	const precision_t* arg2,
+	precision_t* out
+) {
+	const uint32_t i = threadIdx.x + blockIdx.x * blockDim.x;
+	if (i >= n_elements) return;
+
+	out[i] = arg1[i] - arg2[i];
+}
+
+
+__global__ void meta_outer_step(
+	const uint32_t n_elements,
+	const precision_t* arg1,
+	const precision_t* arg2,
+	precision_t* out,
+    const float scale = 128.0f
+) {
+	const uint32_t i = threadIdx.x + blockIdx.x * blockDim.x;
+	if (i >= n_elements) return;
+
+	out[i] = arg1[i] - (arg1[i] - arg2[i])/(precision_t)scale;
+}
+
 __global__ void generate_nerf_network_inputs_from_positions(const uint32_t n_elements,const BoundingBox aabb, const Eigen::Vector3f* __restrict__ pos, float* network_input) {
 	const uint32_t i = threadIdx.x + blockIdx.x * blockDim.x;
 	if (i >= n_elements) return;
@@ -1341,6 +1367,67 @@ bool NeRF_Model::ResetNetwork()
     return true;
 }
 
+bool NeRF_Model::ResetMetaModel()
+{
+    mpMetaLoss.reset(tcnn::create_loss<precision_t>(mNetworkConfig["meta_loss"]));
+    mpMetaOptimizer.reset(tcnn::create_optimizer<precision_t>(mNetworkConfig["meta_optimizer"]));
+    mpMetaNetwork = std::make_shared<tcnn::NetworkWithInputEncoding<precision_t>>(3,4,mNetworkConfig["encoding"],mNetworkConfig["network"]);
+    mpMetaTrainer = std::make_shared<tcnn::Trainer<float, precision_t, precision_t>>(mpMetaNetwork, mpMetaOptimizer, mpMetaLoss);
+
+    CUDA_CHECK_THROW(cudaStreamSynchronize(cudaStreamPerThread));
+    return true;
+}
+
+void NeRF_Model::Train_Step_Meta(std::shared_ptr<nerf::NeRF_Dataset> pTrainData, const size_t numSteps, const size_t itersPerStep)
+{
+    // run the inner loop - assume ResetNetwork has been called
+    for (size_t i = 0; i < numSteps; i++) 
+        // run the inner loop
+        Train_Step(pTrainData, itersPerStep);
+
+    // get all trainable parameters for both networks
+    const precision_t* params = mpTrainer->params();
+    const precision_t* meta_params = mpMetaTrainer->params();
+    const size_t n_params = mpTrainer->n_params();
+    
+    tcnn::GPUMemoryArena::Allocation alloc;
+	auto scratch = tcnn::allocate_workspace_and_distribute<
+		precision_t
+	>(cudaStreamPerThread, &alloc, n_params);
+    precision_t* new_params = std::get<0>(scratch);
+
+    // [ALTERNATE] - manually compute the meta gradient
+    // // compute the new parameters
+    // tcnn::linear_kernel(meta_outer_step, 0, cudaStreamPerThread, 
+    //     n_params, 
+    //     meta_params, 
+    //     params, 
+    //     new_params,
+    //     mLoss_Scale);
+    // CUDA_CHECK_THROW(cudaStreamSynchronize(cudaStreamPerThread));
+
+    // mpMetaTrainer->set_params(new_params, n_params, true);
+    // CUDA_CHECK_THROW(cudaDeviceSynchronize());
+
+    // subtract the params from the meta network
+    tcnn::linear_kernel(subtract, 0, cudaStreamPerThread, 
+        n_params, 
+        meta_params, 
+        params, 
+        new_params);
+    CUDA_CHECK_THROW(cudaStreamSynchronize(cudaStreamPerThread));
+
+    mpMetaTrainer->set_param_gradients_pointer(new_params);
+    CUDA_CHECK_THROW(cudaDeviceSynchronize());
+    mpMetaTrainer->optimizer_step(cudaStreamPerThread, mLoss_Scale);
+    CUDA_CHECK_THROW(cudaStreamSynchronize(cudaStreamPerThread));
+
+    // do this at the end to evaluate the performance of the meta learning
+    ResetNetwork();
+    mpTrainer->set_params(mpMetaTrainer->params(), n_params, false);
+    CUDA_CHECK_THROW(cudaDeviceSynchronize());
+}
+
 void NeRF_Model::AllocateBatchWorkspace(cudaStream_t pStream,const uint32_t PaddedOutputWidth)
 {
     if(mbBatchDataAllocated)
@@ -1627,12 +1714,12 @@ void NeRF_Model::UpdateFrameIdAndBboxOnline(const std::vector<FrameIdAndBbox>& F
     CUDA_CHECK_THROW(cudaStreamSynchronize(cudaStreamPerThread));
 }
 
-bool NeRF_Model::Train_Step(std::shared_ptr<nerf::NeRF_Dataset> pTrainData)
+bool NeRF_Model::Train_Step(std::shared_ptr<nerf::NeRF_Dataset> pTrainData, const size_t itersPerStep)
 {
     auto creation_time = std::chrono::steady_clock::now();
 
     //loop
-    for(int i=0;i<500;i++)
+    for(size_t i=0;i<itersPerStep;i++)
     {
         GenerateBatch(mpTrainStream,pTrainData);
 

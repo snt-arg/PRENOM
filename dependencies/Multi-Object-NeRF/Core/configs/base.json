@@ -20,6 +20,13 @@
 			}
 		}
 	},
+	"meta_optimizer": {
+		"otype": "Adam",
+		"learning_rate": 5e-4
+	},
+	"meta_loss": {
+		"otype": "L2"
+	},
 	"encoding": {
 		"otype": "HashGrid",
 		"n_levels": 16,

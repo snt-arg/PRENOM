@@ -34,7 +34,7 @@ NeRF::NeRF()
 
 }
 
-bool NeRF::CreateModelOffline(const string path, bool useDenseDepth)
+bool NeRF::CreateModelOffline(const string path, const bool useDenseDepth, const bool doMeta)
 {
     if(!ReadBboxOffline(path))
     {
@@ -52,6 +52,13 @@ bool NeRF::CreateModelOffline(const string path, bool useDenseDepth)
         cerr<< "... Create Model error ..."<<endl;
         exit(0);
     }
+
+    if (doMeta && !mpModel->ResetMetaModel())
+    {
+        cerr<< "... Create Meta Model error ..."<<endl;
+        exit(0);
+    }
+
     return true;
 }
 
@@ -117,6 +124,45 @@ bool NeRF::ReadBboxOffline(const string path)
     return true;
 }
 
+void NeRF::TrainMeta(const int iterations)
+{
+    cudaSetDevice(mGPUid);
+
+    cout << "Meta Training ..."<<endl;
+
+    auto start = std::chrono::steady_clock::now();
+    //Allocate
+    if(!mpModel->mbBatchDataAllocated)
+        mpModel->AllocateBatchWorkspace(mpModel->mpTrainStream,mpModel->mpNetwork->padded_output_width());
+
+    //2d bbox cpu -> gpu
+    mpModel->UpdateFrameIdAndBbox(mFrameIdBbox);
+    auto allocate_time = std::chrono::steady_clock::now();
+    cout<<"allocate_time: "<<std::chrono::duration_cast<std::chrono::milliseconds>(allocate_time - start).count()<<std::endl;
+
+    // Meta Training
+    for(int i=1;i<=iterations;i++)
+    {
+        cout << "Meta Training Iteration: " << i << endl;
+
+        mpModel->Train_Step_Meta(mpTrainData, 40, 20);
+
+        if(!mpModel->mbBatchDataAllocated)
+            mpModel->AllocateBatchWorkspace(mpModel->mpTrainStream,mpModel->mpNetwork->padded_output_width());
+        mpModel->UpdateFrameIdAndBbox(mFrameIdBbox);
+
+        mpModel->Train_Step(mpTrainData, 25);
+
+        mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData);
+        mpModel->TransCPUMesh(mpModel->mpInferenceStream,mCPUMeshData);
+
+        cout << "Meta Training Iteration: " << i << " completed" << endl << endl;
+    }
+
+    cout << "Meta Training completed, press Ctrl+C to exit" <<endl;
+}
+
+
 void NeRF::TrainOffline(const int iterations)
 {
     cudaSetDevice(mGPUid);
@@ -134,8 +180,8 @@ void NeRF::TrainOffline(const int iterations)
     //Training
     for(int i=1;i<=iterations;i++)
     {
-        mpModel->Train_Step(mpTrainData);
-        if(i % 2 == 0)
+        mpModel->Train_Step(mpTrainData, 100);
+        if(i % 1 == 0)
         {
             mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData);
             //TransMesh uses VBO, visualization directly uses GPU data, but there are bugs

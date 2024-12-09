@@ -85,14 +85,16 @@ public:
     NeRF_Model(int id, int GPUid, const BoundingBox& mBoundingBox, const Eigen::Matrix4f& mObjTow, uint8_t mInstanceId);
     static bool ReadNetworkConfig(const string config_path);
     bool ResetNetwork();
+    bool ResetMetaModel();
 
     //train
     void AllocateBatchWorkspace(cudaStream_t pStream,const uint32_t OutputWidth);
     void GenerateBatch(cudaStream_t pStream,std::shared_ptr<NeRF_Dataset> pTrainData);
     void Step(cudaStream_t pStream);    //Not suitable for the current version and cannot be used
     void Step_No_Compacted(cudaStream_t pStream);
-    bool Train_Step(std::shared_ptr<nerf::NeRF_Dataset> pTrainData);
+    bool Train_Step(std::shared_ptr<nerf::NeRF_Dataset> pTrainData, const size_t itersPerStep = 500);
     bool Train_Step_Online(std::shared_ptr<nerf::NeRF_Dataset> pTrainData,size_t DataMutexIdx,int iter);
+    void Train_Step_Meta(std::shared_ptr<nerf::NeRF_Dataset> pTrainData, const size_t numSteps, const size_t itersPerStep = 500);
 
     //Render
     void Render(cudaStream_t pStream,const FrameIdAndBbox box,Eigen::Matrix4f Twc, cv::Mat& img,cv::Mat& depth_img, cv::Mat& mask_img, std::shared_ptr<NeRF_Dataset> pTrainData);
@@ -158,6 +160,11 @@ public:
 	std::shared_ptr<tcnn::Encoding<precision_t>> mpEncoding;
 	std::shared_ptr<tcnn::NetworkWithInputEncoding<precision_t>> mpNetwork;
 	std::shared_ptr<tcnn::Trainer<float, precision_t, precision_t>> mpTrainer;
+
+    std::shared_ptr<tcnn::Loss<precision_t>> mpMetaLoss;
+    std::shared_ptr<tcnn::Optimizer<precision_t>> mpMetaOptimizer;
+	std::shared_ptr<tcnn::NetworkWithInputEncoding<precision_t>> mpMetaNetwork;
+	std::shared_ptr<tcnn::Trainer<float, precision_t, precision_t>> mpMetaTrainer;
 
     //train
     int mnTrainingStep = 0;

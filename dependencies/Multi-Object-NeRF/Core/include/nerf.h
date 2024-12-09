@@ -23,9 +23,10 @@ public:
     NeRF();
 
     //offline train function
-    bool CreateModelOffline(const string path, bool useDenseDepth);
+    bool CreateModelOffline(const string path, const bool useDenseDepth, const bool doMeta = false);
     bool ReadBboxOffline(const string path);
     void TrainOffline(const int iterations);
+    void TrainMeta(const int iterations);
     
     //online train function
     void SetAttributes(const int Class,const Eigen::Matrix4f& ObjTow,const BoundingBox& BoundingBox,size_t numBbox);

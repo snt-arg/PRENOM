@@ -27,7 +27,7 @@ public:
 
     bool ReadDataset();
 
-    bool CreateNeRF(const string objectFile);
+    bool CreateNeRF(const string objectFile, const bool meta = false);
 
     bool WaitThreadsEnd();
 

@@ -291,16 +291,17 @@ int main(int argc, char** argv)
 {
 
     cout<<"......Multi-Object NeRF Offline......"<<endl;
-    if(argc != 5)
+    if(argc != 6)
     {
-        cerr << "param error..."<<endl<<"./build/OfflineNeRF ./Core/configs/base.json dataset_path UseGTdepth"<<endl;
+        cerr << "param error..."<<endl<<"./build/OfflineNeRF ./Core/configs/base.json dataset_path UseGTdepth NumObjects DoMeta"<<endl;
         return 0;
     }
 
     string configPath = string(argv[1]);
     string datasetPath = string(argv[2]);
-    int UseGTdepth = stoi(string(argv[3]));
+    const int UseGTdepth = stoi(string(argv[3]));
     const int num_objects = stoi(string(argv[4]));
+    const int do_meta = stoi(string(argv[5]));
     if(UseGTdepth != 0 && UseGTdepth != 1)
     {
         cerr << "UseGTdepth param error..."<<endl<<"0 or 1"<<endl;
@@ -328,10 +329,9 @@ int main(int argc, char** argv)
     nerfManager.ReadDataset();
 
     //Create NeRF models and Training
+    cout << "Create NeRF models and Training... Meta: "<< do_meta << endl;
     for(int i=0;i<vObjPath.size();i++)
-    {
-        nerfManager.CreateNeRF(vObjPath[i]);
-    }
+        nerfManager.CreateNeRF(vObjPath[i], do_meta);
    
     //visualization
     std::shared_ptr<viewer> view = std::make_shared<viewer>();
