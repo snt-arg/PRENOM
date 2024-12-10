@@ -14,7 +14,7 @@ dependencies/line_lbd/build/
 dependencies/line_lbd/lib/
 dependencies/Multi-Object-NeRF/build/
 dependencies/Multi-Object-NeRF/lib/
-dependencies/Multi-Object-NeRF/Core/third_party/
+# dependencies/Multi-Object-NeRF/Core/third_party/
 dependencies/Multi-Object-NeRF/Core/build/
 dependencies/Multi-Object-NeRF/Core/lib/
 dependencies/Multi-Object-NeRF/output/*

@@ -1,3 +1,4 @@
 [submodule "dependencies/Multi-Object-NeRF/Core/third_party/tiny-cuda-nn"]
 	path = dependencies/Multi-Object-NeRF/Core/third_party/tiny-cuda-nn
-	url = https://github.com/NVlabs/tiny-cuda-nn.git
+	url = https://github.com/snt-arg/tiny-cuda-nn
+	brach = ro-map
