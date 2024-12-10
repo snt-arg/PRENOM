@@ -87,6 +87,9 @@ public:
     bool ResetNetwork();
     bool ResetMetaModel();
 
+    bool SaveMetaModel(const string path);
+    bool LoadModel(const string path, const bool loadMeta);
+
     //train
     void AllocateBatchWorkspace(cudaStream_t pStream,const uint32_t OutputWidth);
     void GenerateBatch(cudaStream_t pStream,std::shared_ptr<NeRF_Dataset> pTrainData);

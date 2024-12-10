@@ -6,10 +6,13 @@
 #include <memory>
 #include <thread>
 
+#include "third_party/tiny-cuda-nn/dependencies/json/json.hpp"
+
 #include <opencv2/opencv.hpp>
 #include <Eigen/Core>
 #include "nerf.h"
 
+using json = nlohmann::json;
 using namespace std;
 
 namespace nerf{
@@ -27,7 +30,7 @@ public:
 
     bool ReadDataset();
 
-    bool CreateNeRF(const string objectFile, const bool meta = false);
+    bool CreateNeRF(const string objectFile, const json &systemConfig);
 
     bool WaitThreadsEnd();
 

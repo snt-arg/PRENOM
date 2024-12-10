@@ -61,7 +61,7 @@ bool NerfManagerOffline::ReadDataset()
     return true;
 }
 
-bool NerfManagerOffline::CreateNeRF(const string objectFile, const bool doMeta)
+bool NerfManagerOffline::CreateNeRF(const string objectFile, const json &systemConfig)
 {
     //test file
     std::ifstream file(objectFile);
@@ -79,17 +79,28 @@ bool NerfManagerOffline::CreateNeRF(const string objectFile, const bool doMeta)
     NeRFInstance->mpTrainData = mvpDataset[NeRFInstance->mGPUid];
 
     //Create network 
-    if(!NeRFInstance->CreateModelOffline(objectFile,mbUseDenseDepth,doMeta))
+    if(!NeRFInstance->CreateModelOffline(objectFile,
+                                         mbUseDenseDepth,
+                                         systemConfig["do_meta"],
+                                         systemConfig["load_model"],
+                                         systemConfig["load_path"]))
     {
         cerr << "Create NeRF error ..." <<endl;
         exit(0);
     }
     
     //Training
-    if (doMeta)
-        mvThreads.emplace_back(std::thread(&NeRF::TrainMeta,NeRFInstance,1000));
+    if (systemConfig["do_meta"])
+        mvThreads.emplace_back(std::thread(&NeRF::TrainMeta,
+                                            NeRFInstance,
+                                            systemConfig["meta_n_loops"],
+                                            systemConfig["meta_n_steps"],
+                                            systemConfig["meta_n_iters_per_step"]));
     else
-        mvThreads.emplace_back(std::thread(&NeRF::TrainOffline,NeRFInstance,100));
+        mvThreads.emplace_back(std::thread(&NeRF::TrainOffline,
+                                            NeRFInstance,
+                                            systemConfig["n_steps"],
+                                            systemConfig["n_iters_per_step"]));
     return true;
     
 }

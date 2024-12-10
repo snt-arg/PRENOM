@@ -16,6 +16,9 @@
 #include "nerf_manager.h"
 #include <pangolin/pangolin.h>
 
+#include "third_party/tiny-cuda-nn/dependencies/json/json.hpp"
+
+using json = nlohmann::json;
 using namespace std;
 
 // Visualization class
@@ -291,23 +294,29 @@ int main(int argc, char** argv)
 {
 
     cout<<"......Multi-Object NeRF Offline......"<<endl;
-    if(argc != 6)
+    if(argc != 2)
     {
-        cerr << "param error..."<<endl<<"./build/OfflineNeRF ./Core/configs/base.json dataset_path UseGTdepth NumObjects DoMeta"<<endl;
+        cerr << "param error..."<<endl<<"./build/OfflineNeRF dataset_path"<<endl;
         return 0;
     }
 
-    string configPath = string(argv[1]);
-    string datasetPath = string(argv[2]);
-    const int UseGTdepth = stoi(string(argv[3]));
-    const int num_objects = stoi(string(argv[4]));
-    const int do_meta = stoi(string(argv[5]));
-    if(UseGTdepth != 0 && UseGTdepth != 1)
-    {
-        cerr << "UseGTdepth param error..."<<endl<<"0 or 1"<<endl;
-        return 0;
-    }
+    // defining them here for readability
+    const string nerfConfigPath = "./Core/configs/base.json";
+    const string systemConfigPath = "./Core/configs/system.json";
+
+    const string datasetPath = string(argv[1]);
     
+    std::ifstream file("./Core/configs/system.json");
+    if(!file)
+    {
+        cerr << "config file error..."<<endl;
+        return false;
+    }
+	json systemConfig = json::parse(file, nullptr, true, true);
+    
+    const bool UseGTdepth = systemConfig["use_depth"];
+    const int num_objects = systemConfig["num_objects"];
+
     //Only synthetic datasets can be used
     string objPath = datasetPath + "/obj_offline";
     if(access(objPath.c_str(),0) != 0)
@@ -324,14 +333,13 @@ int main(int argc, char** argv)
     }
 
     //initialization
-    nerf::NerfManagerOffline nerfManager(datasetPath,configPath,bool(UseGTdepth));
+    nerf::NerfManagerOffline nerfManager(datasetPath, nerfConfigPath, UseGTdepth);
     nerfManager.Init();
     nerfManager.ReadDataset();
 
     //Create NeRF models and Training
-    cout << "Create NeRF models and Training... Meta: "<< do_meta << endl;
     for(int i=0;i<vObjPath.size();i++)
-        nerfManager.CreateNeRF(vObjPath[i], do_meta);
+        nerfManager.CreateNeRF(vObjPath[i], systemConfig);
    
     //visualization
     std::shared_ptr<viewer> view = std::make_shared<viewer>();

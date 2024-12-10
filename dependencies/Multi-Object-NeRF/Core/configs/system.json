@@ -1,0 +1,17 @@
+{
+    "num_objects": 1,
+    "use_depth": true,
+    "do_meta": true,
+
+    "load_model": false,
+    "load_path": "./output/meta_model.json",
+
+    "visualize": true,
+
+    "n_iters_per_step": 100,
+    "n_steps": 50,
+
+    "meta_n_iters_per_step": 25,
+    "meta_n_steps": 20,
+    "meta_n_loops": 100
+}

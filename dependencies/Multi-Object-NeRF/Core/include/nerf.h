@@ -23,10 +23,10 @@ public:
     NeRF();
 
     //offline train function
-    bool CreateModelOffline(const string path, const bool useDenseDepth, const bool doMeta = false);
+    bool CreateModelOffline(const string path, const bool useDenseDepth, const bool doMeta, const bool loadModel, const string modelPath);
     bool ReadBboxOffline(const string path);
-    void TrainOffline(const int iterations);
-    void TrainMeta(const int iterations);
+    void TrainOffline(const int nSteps, const int nItersPerStep);
+    void TrainMeta(const int nMetaLoops, const int nMetaSteps, const int nMetaItersPerStep);
     
     //online train function
     void SetAttributes(const int Class,const Eigen::Matrix4f& ObjTow,const BoundingBox& BoundingBox,size_t numBbox);
@@ -88,6 +88,4 @@ public:
     MeshData mMeshData;
 
 };
-
-
 }

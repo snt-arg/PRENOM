@@ -1378,6 +1378,43 @@ bool NeRF_Model::ResetMetaModel()
     return true;
 }
 
+bool NeRF_Model::LoadModel(const string path, const bool loadMeta)
+{
+    try {
+        std::ifstream file(path);
+        if(!file)
+        {
+            cerr << "config file error..."<<endl;
+            return false;
+        }
+        json savedModel = json::parse(file, nullptr, true, true);
+        
+        // load the model depending on the flag
+        if (loadMeta)
+            mpMetaTrainer->deserialize(savedModel);
+        else
+            mpTrainer->deserialize(savedModel);
+    } catch (std::exception& e) {
+		std::cout << "Exception while saving model: " << e.what() << std::endl;
+        return false;
+	}
+    return true;
+    
+}
+
+bool NeRF_Model::SaveMetaModel(const string path)
+{
+    try {
+        std::string json_string = mpMetaTrainer->serialize(false).dump(4);
+        std::ofstream out{path};
+        out << json_string;
+    } catch (std::exception& e) {
+		std::cout << "Exception while saving model: " << e.what() << std::endl;
+        return false;
+	}
+    return true;
+}
+
 void NeRF_Model::Train_Step_Meta(std::shared_ptr<nerf::NeRF_Dataset> pTrainData, const size_t numSteps, const size_t itersPerStep)
 {
     // run the inner loop - assume ResetNetwork has been called
@@ -1419,7 +1456,7 @@ void NeRF_Model::Train_Step_Meta(std::shared_ptr<nerf::NeRF_Dataset> pTrainData,
 
     mpMetaTrainer->set_param_gradients_pointer(new_params);
     CUDA_CHECK_THROW(cudaDeviceSynchronize());
-    mpMetaTrainer->optimizer_step(cudaStreamPerThread, mLoss_Scale);
+    mpMetaTrainer->optimizer_step(cudaStreamPerThread, 1);
     CUDA_CHECK_THROW(cudaStreamSynchronize(cudaStreamPerThread));
 
     // do this at the end to evaluate the performance of the meta learning

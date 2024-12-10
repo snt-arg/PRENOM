@@ -21,8 +21,18 @@
 		}
 	},
 	"meta_optimizer": {
-		"otype": "Adam",
-		"learning_rate": 5e-4
+		"otype": "Ema",
+		"decay": 0.95,
+		"nested": {
+			"otype": "ExponentialDecay",
+			"decay_start": 10,
+			"decay_interval": 10,
+			"decay_base": 0.05,
+			"nested": {
+				"otype": "Adam",
+				"learning_rate": 5e-2
+			}
+		}
 	},
 	"meta_loss": {
 		"otype": "L2"

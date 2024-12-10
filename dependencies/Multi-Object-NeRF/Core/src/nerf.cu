@@ -34,7 +34,7 @@ NeRF::NeRF()
 
 }
 
-bool NeRF::CreateModelOffline(const string path, const bool useDenseDepth, const bool doMeta)
+bool NeRF::CreateModelOffline(const string path, const bool useDenseDepth, const bool doMeta, const bool loadModel, const string modelPath)
 {
     if(!ReadBboxOffline(path))
     {
@@ -57,6 +57,15 @@ bool NeRF::CreateModelOffline(const string path, const bool useDenseDepth, const
     {
         cerr<< "... Create Meta Model error ..."<<endl;
         exit(0);
+    }
+
+    if (loadModel)
+    {
+        if(!mpModel->LoadModel(modelPath, doMeta))
+        {
+            cerr<< "... Load Model error ..."<<endl;
+            exit(0);
+        }
     }
 
     return true;
@@ -124,7 +133,7 @@ bool NeRF::ReadBboxOffline(const string path)
     return true;
 }
 
-void NeRF::TrainMeta(const int iterations)
+void NeRF::TrainMeta(const int nMetaLoops, const int nMetaSteps, const int nMetaItersPerStep)
 {
     cudaSetDevice(mGPUid);
 
@@ -141,17 +150,18 @@ void NeRF::TrainMeta(const int iterations)
     cout<<"allocate_time: "<<std::chrono::duration_cast<std::chrono::milliseconds>(allocate_time - start).count()<<std::endl;
 
     // Meta Training
-    for(int i=1;i<=iterations;i++)
+    for(int i=1;i<=nMetaLoops;i++)
     {
         cout << "Meta Training Iteration: " << i << endl;
 
-        mpModel->Train_Step_Meta(mpTrainData, 40, 20);
+        mpModel->Train_Step_Meta(mpTrainData, nMetaSteps, nMetaItersPerStep);
 
         if(!mpModel->mbBatchDataAllocated)
             mpModel->AllocateBatchWorkspace(mpModel->mpTrainStream,mpModel->mpNetwork->padded_output_width());
         mpModel->UpdateFrameIdAndBbox(mFrameIdBbox);
 
-        mpModel->Train_Step(mpTrainData, 25);
+        // [DEBUG] check what the model is learning after meta-training
+        mpModel->Train_Step(mpTrainData, 1);
 
         mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData);
         mpModel->TransCPUMesh(mpModel->mpInferenceStream,mCPUMeshData);
@@ -159,11 +169,18 @@ void NeRF::TrainMeta(const int iterations)
         cout << "Meta Training Iteration: " << i << " completed" << endl << endl;
     }
 
+    // save the model
+    if (!mpModel->SaveMetaModel("./output/meta_model"))
+    {
+        cerr << "Error saving the meta model" << endl;
+        exit(0);
+    }
+
     cout << "Meta Training completed, press Ctrl+C to exit" <<endl;
 }
 
 
-void NeRF::TrainOffline(const int iterations)
+void NeRF::TrainOffline(const int nSteps, const int nItersPerStep)
 {
     cudaSetDevice(mGPUid);
     
@@ -178,9 +195,9 @@ void NeRF::TrainOffline(const int iterations)
     cout<<"allocate_time: "<<std::chrono::duration_cast<std::chrono::milliseconds>(allocate_time - start).count()<<std::endl;
 
     //Training
-    for(int i=1;i<=iterations;i++)
+    for(int i=1;i<=nSteps;i++)
     {
-        mpModel->Train_Step(mpTrainData, 100);
+        mpModel->Train_Step(mpTrainData, nItersPerStep);
         if(i % 1 == 0)
         {
             mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData);
