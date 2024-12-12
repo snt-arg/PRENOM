@@ -194,6 +194,13 @@ void NeRF::TrainOffline(const int nSteps, const int nItersPerStep)
     auto allocate_time = std::chrono::steady_clock::now();
     cout<<"allocate_time: "<<std::chrono::duration_cast<std::chrono::milliseconds>(allocate_time - start).count()<<std::endl;
 
+    // generate a mesh for visualization before training - to see impact of initial weights
+    mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData);
+    mpModel->TransCPUMesh(mpModel->mpInferenceStream,mCPUMeshData);
+
+    // add a bit of sleep to visualize the initial mesh
+    usleep(2000 * 1000);
+
     //Training
     for(int i=1;i<=nSteps;i++)
     {
@@ -206,6 +213,7 @@ void NeRF::TrainOffline(const int nSteps, const int nItersPerStep)
             //mpModel->TransMesh(mMeshData);
             mpModel->TransCPUMesh(mpModel->mpInferenceStream,mCPUMeshData);
         }
+        usleep(200 * 1000);
     }
     
     std::string filename = "./output/" + to_string(mId) + ".ply";

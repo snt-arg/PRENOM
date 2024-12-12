@@ -1,17 +1,20 @@
 {
-    "num_objects": 1,
-    "use_depth": true,
-    "do_meta": true,
+    "use_depth": false,
+    "do_meta": false,
 
-    "load_model": false,
-    "load_path": "./output/meta_model.json",
+    "object_indices": [
+        1
+    ],
+
+    "load_model": true,
+    "load_path": "./output/laptop.json",
 
     "visualize": true,
 
-    "n_iters_per_step": 100,
-    "n_steps": 50,
+    "n_iters_per_step": 10,
+    "n_steps": 10,
 
     "meta_n_iters_per_step": 25,
     "meta_n_steps": 20,
-    "meta_n_loops": 100
+    "meta_n_loops": 50
 }

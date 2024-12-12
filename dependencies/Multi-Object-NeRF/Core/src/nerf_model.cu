@@ -1395,7 +1395,7 @@ bool NeRF_Model::LoadModel(const string path, const bool loadMeta)
         else
             mpTrainer->deserialize(savedModel);
     } catch (std::exception& e) {
-		std::cout << "Exception while saving model: " << e.what() << std::endl;
+		std::cout << "Exception while loading model: " << e.what() << std::endl;
         return false;
 	}
     return true;
@@ -1412,6 +1412,7 @@ bool NeRF_Model::SaveMetaModel(const string path)
 		std::cout << "Exception while saving model: " << e.what() << std::endl;
         return false;
 	}
+    std::cout << "Model saved to " << path << std::endl;
     return true;
 }
 

@@ -315,7 +315,7 @@ int main(int argc, char** argv)
 	json systemConfig = json::parse(file, nullptr, true, true);
     
     const bool UseGTdepth = systemConfig["use_depth"];
-    const int num_objects = systemConfig["num_objects"];
+    const vector<int> object_indices = systemConfig["object_indices"];
 
     //Only synthetic datasets can be used
     string objPath = datasetPath + "/obj_offline";
@@ -326,11 +326,10 @@ int main(int argc, char** argv)
     }   
 
     //Read training information for each object
+    const int num_objects = object_indices.size();
     vector<string> vObjPath(num_objects);
-    for(int i=0;i<num_objects;i++)
-    {
-        vObjPath[i] = objPath + "/" + to_string(i) + ".txt";
-    }
+    for(int i=0; i<num_objects; i++)
+        vObjPath[i] = objPath + "/" + to_string(object_indices[i]) + ".txt";
 
     //initialization
     nerf::NerfManagerOffline nerfManager(datasetPath, nerfConfigPath, UseGTdepth);
