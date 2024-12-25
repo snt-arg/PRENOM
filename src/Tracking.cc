@@ -275,10 +275,12 @@ cv::Mat Tracking::GrabImageStereo(const cv::Mat &imRectLeft, const cv::Mat &imRe
 }
 
 
-cv::Mat Tracking::GrabImageRGBD(const cv::Mat &imRGB,const cv::Mat &imD, const double &timestamp)
+cv::Mat Tracking::GrabImageRGBD(const cv::Mat &im, const cv::Mat &imD, const cv::Mat &imgInstance, const double &timestamp, const string &strDataset)
 {
-    mImGray = imRGB;
+    mImGray = im;
     cv::Mat imDepth = imD;
+    mImColor = im;
+    mImgInstance = imgInstance;
 
     if(mImGray.channels()==3)
     {
@@ -299,6 +301,182 @@ cv::Mat Tracking::GrabImageRGBD(const cv::Mat &imRGB,const cv::Mat &imD, const d
         imDepth.convertTo(imDepth,CV_32F,mDepthMapFactor);
 
     mCurrentFrame = Frame(mImGray,imDepth,timestamp,mpORBextractorLeft,mpORBVocabulary,mK,mDistCoef,mbf,mThDepth);
+
+    vector<Bbox> Bboxs;
+    {
+        //offline read object detection----------------------------
+        string sYolopath = strDataset + "/" + "bbox/" + to_string(timestamp) + ".txt";
+        
+        ifstream f;
+        f.open(sYolopath);
+        if(!f.is_open())
+        {
+            cout << "yolo_detection file open fail" << endl;
+            exit(0);
+        }
+        
+        //Read txt
+        string line;
+        float num;
+        vector<float> row;
+        while(getline(f,line))
+        {
+            stringstream s(line);
+            while (s >> num)
+            {
+                row.push_back(num);
+            }
+            Bbox newBbox;
+            newBbox.mnClass = row[0];
+
+            //extend box
+            if(mbExtendBox)
+            {
+                newBbox.x = max(0.0f,row[1] - 10);
+                newBbox.y = max(0.0f,row[2] - 10);
+                newBbox.width = min(float(mImGray.cols-1) - newBbox.x,row[3] + 20);
+                newBbox.height = min(float(mImGray.rows-1) - newBbox.y,row[4] + 20); 
+            }
+            else
+            {
+                newBbox.x = row[1];
+                newBbox.y = row[2];
+                newBbox.width = row[3];
+                newBbox.height = row[4];
+            }
+            newBbox.mfConfidence = row[5];
+            Bboxs.push_back(newBbox);
+            row.clear();
+        }
+        f.close();
+
+    }
+    
+    /*Filter bad Bbox. Including the following situations:
+        Close to image edge
+        Overlap each other
+        Bbox is too large
+        */
+    if(!Bboxs.empty())
+    {
+        vector<int> resIdx(Bboxs.size(),1);
+        vector<Bbox> resBbox;
+        for(size_t i=0;i<Bboxs.size();i++)
+        {
+            if(!resIdx[i])
+                continue;
+
+            Bbox &box = Bboxs[i];
+
+            // There will be errors in target detection, and error categories can be filtered here
+            if(mvIgnoreCategory.find(box.mnClass) != mvIgnoreCategory.end())
+            {
+                resIdx[i] = 0;
+                continue;
+            }
+
+            if(mbCheckBoxEdge)
+            {
+                //Close to image edge
+                if(box.x < 20 || box.x+box.width > im.cols-20 || box.y < 20 || box.y+box.height > im.rows-20)
+                {  
+                    if(box.area() < im.cols * im.rows * 0.05)
+                    {
+                        resIdx[i] = 0;
+                        continue;
+                    }
+                    box.mbEdge = true;
+                    if(box.area() < im.cols * im.rows * 0.1)
+                        box.mbEdgeAndSmall = true;
+                }
+            }
+
+            //Bbox is large than half of img
+            if(box.area() > im.cols * im.rows * 0.5)
+            {
+                resIdx[i] = 0;
+                continue;
+            }
+            else if(box.area() < im.cols * im.rows * 0.005)
+            {
+                resIdx[i] = 0;
+                continue;
+            }
+
+            //Overlap each other
+            for(size_t j=0;j<Bboxs.size();j++)
+            {
+                if(i == j || resIdx[j] == 0)
+                    continue;
+                
+                Bbox &box_j = Bboxs[j];
+                float SizeScale = min(box_j.area(),box.area()) / max(box_j.area(),box.area());
+                if(SizeScale > 0.25)
+                {
+                    float overlap = (box & box_j).area();
+                    float IOU = overlap / (box.area() + box_j.area() - overlap);
+                    if(IOU > 0.4)
+                    {
+                        resIdx[i] = 0;
+                        resIdx[j] = 0;
+                        break;
+                    }
+                }
+            } 
+        }
+
+        for(size_t i=0;i<Bboxs.size();i++)
+        {
+            if(resIdx[i])
+                resBbox.push_back(Bboxs[i]);
+        }
+        Bboxs = resBbox;
+    }
+    
+    if(!Bboxs.empty())
+    {
+        mCurrentFrame.mbDetectObject = true;
+        mCurrentFrame.mvBbox = Bboxs;
+        mCurrentFrame.UndistortFrameBbox();
+
+        //Line detect-----------------------------------------------
+        //using distort Img
+        cv::Mat undistortImg = mImGray.clone();
+        if(mDistCoef.at<float>(0)!=0.0)
+        {
+            cv::undistort(mImGray,undistortImg,mK,mDistCoef);
+        }
+        mpLineDetect->detect_raw_lines(undistortImg,mCurrentFrame.mvLines);
+        
+        vector<KeyLine> FilterLines;
+        mpLineDetect->filter_lines(mCurrentFrame.mvLines,FilterLines);
+        mCurrentFrame.mvLines = FilterLines;
+        Eigen::MatrixXd LinesEigen(FilterLines.size(),4);
+        for(size_t i=0;i<FilterLines.size();i++)
+        {
+            LinesEigen(i,0)=FilterLines[i].startPointX;
+            LinesEigen(i,1)=FilterLines[i].startPointY;
+            LinesEigen(i,2)=FilterLines[i].endPointX;
+            LinesEigen(i,3)=FilterLines[i].endPointY;
+        }
+        mCurrentFrame.mLinesEigen = LinesEigen;
+        
+        //creat object_Frame---------------------------------------------------
+        for(size_t i=0;i<mCurrentFrame.mvBboxUn.size();i++)
+        {
+            Object_Frame object_frame;
+            object_frame.mnFrameId = mCurrentFrame.mnId;
+            object_frame.mBbox = mCurrentFrame.mvBboxUn[i];
+            object_frame.mnClass = object_frame.mBbox.mnClass;
+            object_frame.mfConfidence = object_frame.mBbox.mfConfidence;
+            mCurrentFrame.mvObjectFrame.push_back(object_frame);
+        }
+
+    }
+    
+    //Assign feature points and lines to detected objects
+    mCurrentFrame.AssignFeaturesToBbox(mImgInstance);
+    mCurrentFrame.AssignLinesToBbox();
 
     Track();
 
@@ -772,6 +950,50 @@ void Tracking::StereoInitialization()
         // Set Frame pose to the origin
         mCurrentFrame.SetPose(cv::Mat::eye(4,4,CV_32F));
 
+        //Make the global coordinate system parallel to the horizontal plane
+        //using GT pose only at initialization
+        string sTimestmap = to_string(mCurrentFrame.mTimeStamp);
+        sTimestmap = sTimestmap.substr(0,sTimestmap.size()-4);
+        Eigen::Matrix<double,7,1> GTiw;
+        bool haveGTpose = false;
+        //RO-MAP get current camera groundtruth by timestamp.
+        for(size_t i=0;i<mvGroundtruthPose.size();i++)
+        {
+            string GTtimestamp = to_string(mvGroundtruthPose[i][0]);
+            GTtimestamp = GTtimestamp.substr(0,GTtimestamp.size()-4);
+            if(sTimestmap == GTtimestamp)
+            {
+                GTiw(0) = mvGroundtruthPose[i][1];
+                GTiw(1) = mvGroundtruthPose[i][2];
+                GTiw(2) = mvGroundtruthPose[i][3];
+                GTiw(3) = mvGroundtruthPose[i][4];
+                GTiw(4) = mvGroundtruthPose[i][5];
+                GTiw(5) = mvGroundtruthPose[i][6];
+                GTiw(6) = mvGroundtruthPose[i][7];
+                haveGTpose = true;
+                break;
+            }
+        }
+        
+        if(haveGTpose)
+        {   
+            //Only the rotation information is used to make the world coordinates parallel to the ground plane 
+            cout<<"GTiw: \n"<<GTiw<<endl;
+            g2o::SE3Quat SE3GroundtruthPose_iw(GTiw);
+            cv::Mat Tiw = Converter::toCvMat(SE3GroundtruthPose_iw);
+            cv::Mat Riw = Tiw.rowRange(0,3).colRange(0,3);
+            cv::Mat Rwi = Riw.t();
+            cv::Mat Twi = cv::Mat::eye(4,4,CV_32F);
+            Rwi.copyTo(Twi.rowRange(0,3).colRange(0,3));
+            mCurrentFrame.SetPose(mCurrentFrame.mTcw*Twi);
+        }
+        else
+        {
+            cout<<"No GT pose Init"<<endl;
+            //If there is no GT pose, 
+            //the camera needs to be parallel to the ground plane during initialization
+        } 
+
         // Create KeyFrame
         KeyFrame* pKFini = new KeyFrame(mCurrentFrame,mpMap,mpKeyFrameDB);
 
@@ -1048,7 +1270,6 @@ void Tracking::CreateInitialMapMonocular()
     mLastFrame = Frame(mCurrentFrame);
 
     mpMap->SetReferenceMapPoints(mvpLocalMapPoints);
-
     mpMapDrawer->SetCurrentCameraPose(pKFcur->GetPose());
 
     mpMap->mvpKeyFrameOrigins.push_back(pKFini);

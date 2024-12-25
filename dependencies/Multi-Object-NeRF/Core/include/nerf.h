@@ -30,7 +30,7 @@ public:
     
     //online train function
     void SetAttributes(const int Class,const Eigen::Matrix4f& ObjTow,const BoundingBox& BoundingBox,size_t numBbox);
-    bool CreateModelOnline(bool useSparseDepth, int Iterations);
+    bool CreateModelOnline(bool useSparseDepth, int Iterations, const int classId);
     void TrainOnline();
     void UpdateFrameBBox(const vector<nerf::FrameIdAndBbox>& vFrameBbox, const int train_step);
     bool CheckFinish();

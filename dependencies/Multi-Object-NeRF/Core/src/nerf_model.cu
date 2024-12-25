@@ -328,7 +328,6 @@ __global__ void subtract(
 	out[i] = arg1[i] - arg2[i];
 }
 
-
 __global__ void meta_outer_step(
 	const uint32_t n_elements,
 	const precision_t* arg1,
@@ -414,14 +413,14 @@ __global__ void GenerateRays(const uint32_t nRays,const size_t mnBbox,
     const uint8_t* instance = pData[pBBox->FrameId].instance;
     const Eigen::Matrix4f* pPose = pData[pBBox->FrameId].Pose;
 
-    int h = pBBox->h;
-    int w = pBBox->w;
+    const int h = pBBox->h;
+    const int w = pBBox->w;
     
     //position
-    uint32_t x = pBBox->x + uint32_t(SampleXY[2*i] * w);
-    uint32_t y = pBBox->y + uint32_t(SampleXY[2*i+1] * h);;
+    const uint32_t x = pBBox->x + uint32_t(SampleXY[2*i] * w);
+    const uint32_t y = pBBox->y + uint32_t(SampleXY[2*i+1] * h);;
 
-    uint8_t instanceId = instance[y*W+x];
+    const uint8_t instanceId = instance[y*W+x];
     //Occlusion, skip this ray
     if(instanceId != 0 && instanceId != ObjInstanceId)
         return;
@@ -499,8 +498,8 @@ __global__ void GenerateRenderRays(const uint32_t nRays,
     d = Pose.block<3,3>(0,0) * d.normalized();
     Eigen::Vector3f o = Pose.col(3).head<3>();
     // w ==> o
-    d = ObjTow.block<3,3>(0,0) * d;
-    o = ObjTow.block<3,3>(0,0) * o + ObjTow.col(3).head<3>();
+    d = ObjTow.block<3,3>(0,0) * d; // ray direction in object coordinate
+    o = ObjTow.block<3,3>(0,0) * o + ObjTow.col(3).head<3>(); // camera position in object coordinate
     
     Eigen::Vector2f tminmax = ray_intersect(ObjBBox,o,d);
     if(tminmax[0] != std::numeric_limits<float>::max())
@@ -611,9 +610,7 @@ __global__ void GenerateInputPoints(const uint32_t nRays,const uint32_t nSampleN
         PointsInput[base + n*3 + 1] = point.y();
         PointsInput[base + n*3 + 2] = point.z();
         SamplesDistances[i*nSampleNum + n] = t;
-
     } */
-
 }
 
 __global__ void GenerateRenderInputPoints(const uint32_t nRays,const uint32_t nSampleNum,
@@ -892,7 +889,7 @@ __global__ void VolumeRenderGradient_No_Compacted(const uint32_t nRays,const uin
     float depth_ray = depth_rays[0];
     //L1 loss
     float dloss_ddepth = 0.0f;
-    const float depth_supervision_lambda = 0.5f;
+    const float depth_supervision_lambda = 1.5f;
     if(depthtarget > 0.0f)
         dloss_ddepth = depth_supervision_lambda * (depth_ray - depthtarget >= 0.f ? 1.0f : -1.0f); 
         
@@ -1462,7 +1459,7 @@ void NeRF_Model::Train_Step_Meta(std::shared_ptr<nerf::NeRF_Dataset> pTrainData,
 
     // do this at the end to evaluate the performance of the meta learning
     ResetNetwork();
-    mpTrainer->set_params(mpMetaTrainer->params(), n_params, false);
+    mpTrainer->set_params(mpMetaTrainer->params(), n_params, true);
     CUDA_CHECK_THROW(cudaDeviceSynchronize());
 }
 
@@ -1728,7 +1725,6 @@ void NeRF_Model::Step_No_Compacted(cudaStream_t pStream)
         //backward
         mpNetwork->backward(pStream, *ctx, Batch.PointsInput, Batch.RgbSigmaOutput, Batch.dloss_dout, nullptr, false, tcnn::EGradientMode::Overwrite);
     }
-
 }
 
 void NeRF_Model::UpdateFrameIdAndBbox(const std::vector<FrameIdAndBbox>& FrameIdBbox)

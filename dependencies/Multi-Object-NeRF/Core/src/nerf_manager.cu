@@ -261,7 +261,7 @@ size_t NerfManagerOnline::CreateNeRF(const int Class, const Eigen::Matrix4f &Obj
     NeRFInstance->mpTrainData->mvUpdateMutex.emplace_back(new std::mutex());
     
     NeRFInstance->SetAttributes(Class,ObjTow,BoundingBox,mvpDataset[0]->mnImages);
-    if(!NeRFInstance->CreateModelOnline(mbUseSparseDepth,mnTrainStepIterations))
+    if(!NeRFInstance->CreateModelOnline(mbUseSparseDepth,mnTrainStepIterations,Class))
     {
         cerr << "Create NeRF error ..." <<endl;
         exit(0);

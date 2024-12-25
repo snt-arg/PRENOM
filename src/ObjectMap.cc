@@ -76,6 +76,8 @@ void Object_Map::UpdateMapPoints()
 
     }
     mvpNewAddMapPoints.clear();
+
+    // std::cout << "Number of MapPoints in Object: " << mvpMapPoints.size() << std::endl;
 }
 
 //Calculate the mean and standard deviation
@@ -639,7 +641,6 @@ void Object_Map::CalculateObjectShape()
         Obj_Z_axis.push_back(ObjPos(2));
 
         points.push_back(ObjPos);
-
     }
     
     sort(Obj_X_axis.begin(),Obj_X_axis.end());
@@ -903,6 +904,96 @@ void Object_Map::InsertHistoryBboxAndTwc(const Frame& CurrentFrame)
     mHistoryBbox[CurrentFrame.mTimeStamp] = mLastBbox;
     mHistoryTwc[CurrentFrame.mTimeStamp] = Converter::toMatrix4f(CurrentFrame.mTcw).inverse();
 
+}
+
+void Object_Map::AlignToCanonical()
+{
+    // load the normalized object shape
+    const std::string filepath = "models/" + to_string(mnClass) + ".ply";
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::io::loadPLYFile(filepath, *cloud);
+    cloud->width = cloud->points.size();
+    cloud->height = 1;
+    cloud->points.resize(cloud->width * cloud->height);
+
+    // make a KD-Tree
+    pcl::KdTreeFLANN<pcl::PointXYZ>::Ptr tree(new pcl::KdTreeFLANN<pcl::PointXYZ>);
+    tree->setInputCloud(cloud);
+
+    // get the current pose and extent of the object - extents inflated by 10%
+    const Eigen::Matrix4d Tow = mShape.mTobjw.to_homogeneous_matrix();
+    const Eigen::Matrix4d Two = Tow.inverse();
+    Eigen::Vector3d bboxMin = Eigen::Vector3d(-mShape.a1,-mShape.a2,-mShape.a3);
+    Eigen::Vector3d bboxMax = Eigen::Vector3d(mShape.a1,mShape.a2,mShape.a3);
+
+    // inflate the bounding box according to the object category
+    bboxMin = (bboxMin - Eigen::Vector3d(0.005,0.005,0.005)) * 1.1;
+    bboxMax = (bboxMax + Eigen::Vector3d(0.005,0.005,0.005)) * 1.1;
+
+    // get the accuracy of the point cloud across the orthognal directions 
+    std::vector<float> angles = {0, M_PI/2, M_PI, 3*M_PI/2};
+    float accuracy[4];
+    std::vector<std::pair<Eigen::Matrix4d, Eigen::Vector3d>> results;
+    pcl::PointCloud<pcl::PointXYZ>::Ptr object(new pcl::PointCloud<pcl::PointXYZ>);
+    Eigen::Vector3d newBboxMin, newBboxMax;
+    for(int i = 0; i < 4; i++)
+    {   
+        // Determine the new object pose and extent
+        Eigen::Matrix3d R_const = Converter::eulerAnglesToMatrix(angles[i]);
+        Eigen::Matrix4d newTow = Two;
+        newTow.block(0,0,3,3) = R_const * newTow.block(0,0,3,3);
+        newTow = newTow.inverse();
+        newBboxMax = R_const * bboxMax;
+        newBboxMax = newBboxMax.cwiseAbs();
+        newBboxMin = -newBboxMax;
+
+        // transform the point cloud
+        object->clear();
+        for(MapPoint* pMP : mvpMapPoints)
+        {
+            if(pMP->isBad())
+                continue;
+            Eigen::Vector3d pos = newTow.block(0,0,3,3) * Converter::toVector3d(pMP->GetWorldPos()) + newTow.block(0,3,3,1);
+            pos = (pos - newBboxMin).cwiseQuotient(newBboxMax - newBboxMin);
+            object->push_back(pcl::PointXYZ(pos(0),pos(1),pos(2)));
+        }
+        accuracy[i] = ComputePointCloudAccuracy(tree, object);
+        results.push_back(std::make_pair(newTow, newBboxMax));
+    }
+
+    // find the best alignment
+    std::cout << "All accuracies: " << std::endl;
+    for(int i = 0; i < 4; i++)
+        std::cout << accuracy[i] << std::endl;
+    int best = 0;
+    for(int i = 1; i < 4; i++)
+    {
+        if(accuracy[i] < accuracy[best])
+            best = i;
+    }
+
+    // apply the best alignment
+    mShape.mTobjw = SE3Quat(results[best].first.block(0,0,3,3), results[best].first.block(0,3,3,1));
+    mShape.a1 = results[best].second(0);
+    mShape.a2 = results[best].second(1);
+    mShape.a3 = results[best].second(2);
+    mShape.mfMaxDist = sqrt(mShape.a1 * mShape.a1 + mShape.a2 * mShape.a2 + mShape.a3 * mShape.a3);
+    mTobjw = mShape.mTobjw;
+}
+
+float Object_Map::ComputePointCloudAccuracy(const pcl::KdTreeFLANN<pcl::PointXYZ>::Ptr& canonical, 
+                                            const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) const
+{
+    // find the nearest neighbor for each point in the cloud
+    std::vector<int> indices;
+    std::vector<float> distances;
+    float accuracy = 0;
+    for (int i = 0; i < cloud->points.size(); i++)
+    {
+        canonical->nearestKSearch(cloud->points[i], 1, indices, distances);
+        accuracy += distances[0];
+    }
+    return accuracy / cloud->points.size();
 }
 
 }

@@ -41,6 +41,11 @@ find_package(Eigen3 REQUIRED)
 ############
 find_package(Pangolin REQUIRED)
 
+###########
+# PCL     #
+###########
+find_package(PCL 1.7 REQUIRED)
+
 ##################
 # Mutil_Object_NeRF #
 ##################
@@ -52,7 +57,11 @@ ${PROJECT_SOURCE_DIR}
 ${PROJECT_SOURCE_DIR}/include
 ${EIGEN3_INCLUDE_DIR}
 ${Pangolin_INCLUDE_DIRS}
+${PCL_INCLUDE_DIRS}
 )
+
+link_directories(${PCL_LIBRARY_DIRS})
+add_definitions(${PCL_DEFINITIONS})
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
 
@@ -86,6 +95,7 @@ target_link_libraries(${PROJECT_NAME}
 ${OpenCV_LIBS}
 ${EIGEN3_LIBS}
 ${Pangolin_LIBRARIES}
+${PCL_LIBRARIES}
 ${PROJECT_SOURCE_DIR}/dependencies/DBoW2/lib/libDBoW2.so
 ${PROJECT_SOURCE_DIR}/dependencies/g2o/lib/libg2o.so
 ${PROJECT_SOURCE_DIR}/dependencies/line_lbd/lib/libline_lbd.so
@@ -93,8 +103,14 @@ ${PROJECT_SOURCE_DIR}/dependencies/line_lbd/lib/libline_lbd.so
 ${PROJECT_SOURCE_DIR}/dependencies/Multi-Object-NeRF/Core/build/libMON.so
 )
 
-# Build examples
+# Build examples - Monocular
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/examples/Monocular)
 add_executable(mono_tum
 examples/Monocular/mono_tum.cc)
 target_link_libraries(mono_tum ${PROJECT_NAME})
+
+# Build examples - RGBD
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/examples/RGBD)
+add_executable(rgbd_tum
+examples/RGBD/rgbd_tum.cc)
+target_link_libraries(rgbd_tum ${PROJECT_NAME})

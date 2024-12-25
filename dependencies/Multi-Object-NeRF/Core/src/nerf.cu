@@ -176,6 +176,10 @@ void NeRF::TrainMeta(const int nMetaLoops, const int nMetaSteps, const int nMeta
         exit(0);
     }
 
+    // save the mesh
+    std::string filename = "./output/meta_model.ply";
+    mpModel->SaveMesh(filename);
+
     cout << "Meta Training completed, press Ctrl+C to exit" <<endl;
 }
 
@@ -218,6 +222,7 @@ void NeRF::TrainOffline(const int nSteps, const int nItersPerStep)
     
     std::string filename = "./output/" + to_string(mId) + ".ply";
     mpModel->SaveMesh(filename);
+    // mpModel->RenderVideo(mpModel->mpInferenceStream,mpTrainData,"./output/rgb","./output/depth",1.0);
 
     cout << "Training completed, press Ctrl+C to exit" <<endl;
 }
@@ -246,12 +251,27 @@ void NeRF::SetAttributes(const int Class,const Eigen::Matrix4f& ObjTow,const Bou
     mnBbox = 0;
 }
 
-bool NeRF::CreateModelOnline(bool useSparseDepth, int Iterations)
+bool NeRF::CreateModelOnline(bool useSparseDepth, int Iterations, const int classId)
 {
     mbUseDepth = useSparseDepth;
     mnIteration = Iterations;
     mpModel = std::make_shared<NeRF_Model>(mId,mGPUid,mBoundingBox,mObjTow,mInstanceId);
     mpModel->mbUseDepth = mbUseDepth;
+
+    if(!mpModel->ResetNetwork())
+    {
+        cerr<< "... Create Model error ..."<<endl;
+        exit(0);
+    }
+
+    if (classId == 63)
+    {
+        mpModel->LoadModel("./models/laptop.json", false);
+        mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData);
+        mpModel->TransCPUMesh(mpModel->mpInferenceStream,mCPUMeshData);
+        std::cout << "Pretrained model for laptop loaded" << std::endl;
+    }
+
     return true;
 }
 
@@ -259,12 +279,6 @@ void NeRF::TrainOnline()
 {
     cudaSetDevice(mGPUid);
     
-    if(!mpModel->ResetNetwork())
-    {
-        cerr<< "... Create Model error ..."<<endl;
-        exit(0);
-    }
-
     auto start = std::chrono::steady_clock::now();
     if(!mpModel->mbBatchDataAllocated)
         mpModel->AllocateBatchWorkspace(mpModel->mpTrainStream,mpModel->mpNetwork->padded_output_width());
@@ -296,7 +310,7 @@ void NeRF::TrainOnline()
             {
                 mpModel->Train_Step_Online(mpTrainData,mDataMutexIdx,GetTrainIters(train_step_count));
                 train_step_count += 1;
-                if(train_step_count % 2 == 0)
+                if(train_step_count % 1 == 0)
                 {
                     mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData);
                     

@@ -110,7 +110,7 @@ protected:
 
     nerf::NerfManagerOnline* mpNeRFManager;
 
-    unsigned long int mnLastUpdateObjFramaeId;
+    unsigned long int mnLastUpdateObjFrameId;
 
     set<Object_Map*> mvUpdateObj;
 

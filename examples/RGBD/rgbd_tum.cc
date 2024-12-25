@@ -22,31 +22,33 @@
 using namespace std;
 
 void LoadImages(const string &strFile, vector<string> &vstrImageFilenames,
-vector<string> &vstrInstanceFilenames, vector<double> &vTimestamps);
+                vector<string> &vstrInstanceFilenames, vector<string> &vstrDepthFilenames,
+                vector<double> &vTimestamps);
 
 int main(int argc, char **argv)
 {
     if(argc != 4)
     {
-        cerr << endl << "Usage: ./mono_tum path_to_vocabulary path_to_nerf_config path_to_sequence" << endl;
+        cerr << endl << "Usage: ./rgbd_tum path_to_vocabulary path_to_nerf_config path_to_sequence" << endl;
         return 1;
     }
 
     // Retrieve paths to images
     vector<string> vstrImageFilenames;
     vector<string> vstrInstanceFilenames;
+    vector<string> vstrDepthFilenames;
     vector<double> vTimestamps;
     const string strDataset = string(argv[3]);
     const string strFile = string(argv[3]) + "/img.txt";
     const string strDatasetConfig = string(argv[3]) + "/config.yaml";
     const string strNeRFConfig = string(argv[2]);
 
-    LoadImages(strFile, vstrImageFilenames,vstrInstanceFilenames, vTimestamps);
+    LoadImages(strFile, vstrImageFilenames,vstrInstanceFilenames, vstrDepthFilenames, vTimestamps);
 
     int nImages = vstrImageFilenames.size();
 
     // Create SLAM system. It initializes all system threads and gets ready to process frames.
-    ORB_SLAM2::System SLAM(argv[1],strDatasetConfig,strNeRFConfig,strDataset,nImages,ORB_SLAM2::System::MONOCULAR,true);
+    ORB_SLAM2::System SLAM(argv[1],strDatasetConfig,strNeRFConfig,strDataset,nImages,ORB_SLAM2::System::RGBD,true);
 
     // Vector for tracking time statistics
     vector<float> vTimesTrack;
@@ -58,13 +60,15 @@ int main(int argc, char **argv)
 
     // Main loop
     cv::Mat im;
-    cv::Mat ImgInstance;
+    cv::Mat imgInstance;
+    cv::Mat imgDepth;
  
     for(int ni=0; ni<nImages; ni++)
     {
         // Read image from file
         im = cv::imread(strDataset+"/"+vstrImageFilenames[ni],cv::IMREAD_UNCHANGED);
-        ImgInstance = cv::imread(strDataset+"/"+vstrInstanceFilenames[ni],cv::IMREAD_UNCHANGED);
+        imgInstance = cv::imread(strDataset+"/"+vstrInstanceFilenames[ni],cv::IMREAD_UNCHANGED);
+        imgDepth = cv::imread(strDataset+"/"+vstrDepthFilenames[ni],cv::IMREAD_UNCHANGED);
         double tframe = vTimestamps[ni];
 
         if(im.empty())
@@ -73,16 +77,22 @@ int main(int argc, char **argv)
                  << strDataset << "/" << vstrImageFilenames[ni] << endl;
             return 1;
         }
-        if(ImgInstance.empty())
+        if(imgInstance.empty())
         {
             cerr << endl << "Failed to load image at: "
                  << strDataset << "/" << vstrInstanceFilenames[ni] << endl;
             return 1;
         }
+        if(imgDepth.empty())
+        {
+            cerr << endl << "Failed to load image at: "
+                 << strDataset << "/" << vstrDepthFilenames[ni] << endl;
+            return 1;
+        }
 
         std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
         // Pass the image to the SLAM system
-        SLAM.TrackMonocular(im,ImgInstance,tframe,strDataset);
+        SLAM.TrackRGBD(im,imgDepth,imgInstance,tframe,strDataset);
         
         std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
         double ttrack= std::chrono::duration_cast<std::chrono::duration<double> >(t2 - t1).count();
@@ -129,7 +139,7 @@ int main(int argc, char **argv)
     return 0;
 }
 
-void LoadImages(const string &strFile, vector<string> &vstrImageFilenames,vector<string> &vstrInstanceFilenames, vector<double> &vTimestamps)
+void LoadImages(const string &strFile, vector<string> &vstrImageFilenames,vector<string> &vstrInstanceFilenames, vector<string> &vstrDepthFilenames, vector<double> &vTimestamps)
 {
     ifstream f;
     f.open(strFile.c_str());
@@ -153,8 +163,10 @@ void LoadImages(const string &strFile, vector<string> &vstrImageFilenames,vector
             ss >> sName;
             string rgb = "rgb/" + sName;
             string instance = "instance/" +  sName;
+            string depth = "depth/" + sName;
             vstrImageFilenames.push_back(rgb);
             vstrInstanceFilenames.push_back(instance);
+            vstrDepthFilenames.push_back(depth);
         }
     }
     f.close();       

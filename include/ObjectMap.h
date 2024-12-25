@@ -7,6 +7,9 @@
 #ifndef OBJECT_MAP_H
 #define OBJECT_MAP_H
 
+#include <pcl/common/common.h>
+#include<pcl/io/ply_io.h>
+#include <pcl/kdtree/kdtree_flann.h>
 #include "opencv2/opencv.hpp"
 #include "Eigen/Core"
 #include "Eigen/Eigenvalues"
@@ -89,6 +92,12 @@ public:
 
     // Merge possible same Object
     void MergeObject(Object_Map* pObj,const double CurKeyFrameStamp);
+
+    // Align objects to their canonical pose based on the class
+    void AlignToCanonical();
+    float ComputePointCloudAccuracy(const pcl::KdTreeFLANN<pcl::PointXYZ>::Ptr& canonical, 
+                                    const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) const;
+
 
     //Get Replace Object pointer
     Object_Map* GetReplaced();

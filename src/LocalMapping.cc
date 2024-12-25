@@ -25,7 +25,7 @@ namespace ORB_SLAM2
 {
 float LocalMapping::mfAngleChange;
 
-LocalMapping::LocalMapping(Map *pMap, const float bMonocular):mnLastUpdateObjFramaeId(0),
+LocalMapping::LocalMapping(Map *pMap, const float bMonocular):mnLastUpdateObjFrameId(0),
     mbMonocular(bMonocular), mbResetRequested(false), mbFinishRequested(false), mbFinished(true), mpMap(pMap),
     mbAbortBA(false), mbStopped(false), mbStopRequested(false), mbNotStop(false), mbAcceptKeyFrames(true)
 {
@@ -838,7 +838,7 @@ void LocalMapping::UpdateObjSizeAndPose()
             continue;
         
         //The object has new observations in the tracking thread
-        if(pObj->mnlatestObsFrameId > mnLastUpdateObjFramaeId)
+        if(pObj->mnlatestObsFrameId > mnLastUpdateObjFrameId)
         {
             mvUpdateObj.insert(pObj);
         }
@@ -847,7 +847,7 @@ void LocalMapping::UpdateObjSizeAndPose()
     if(mvUpdateObj.empty())
         return;
     
-    unsigned long int maxUpdateObjFramaeId = mnLastUpdateObjFramaeId;
+    unsigned long int maxUpdateObjFrameId = mnLastUpdateObjFrameId;
     
     for(Object_Map* pObj : mvUpdateObj)
     {
@@ -862,11 +862,11 @@ void LocalMapping::UpdateObjSizeAndPose()
             pObj->mKeyFrameHistoryBbox_Temp[mpCurrentKeyFrame->mTimeStamp] = pObj->mHistoryBbox[mpCurrentKeyFrame->mTimeStamp];
         }
             
-        if(pObj->mnlatestObsFrameId > maxUpdateObjFramaeId)
-            maxUpdateObjFramaeId = pObj->mnlatestObsFrameId;
+        if(pObj->mnlatestObsFrameId > maxUpdateObjFrameId)
+            maxUpdateObjFrameId = pObj->mnlatestObsFrameId;
     }
 
-    mnLastUpdateObjFramaeId = maxUpdateObjFramaeId;
+    mnLastUpdateObjFrameId = maxUpdateObjFrameId;
 
 }
 
@@ -1218,13 +1218,16 @@ void LocalMapping::UpdateObjNeRF()
             if(angle > 2 * mfAngleChange)
             {
                 //create 
-                int cls;
+                const int cls = pObj->mnClass;
                 Eigen::Matrix4f Tow;
                 nerf::BoundingBox BBox;
 
+                // align to canonical wherever possible
+                if (cls == 63)
+                    pObj->AlignToCanonical();
+
                 //NeRF Bbox attribute
                 Tow = pObj->mShape.mTobjw.to_homogeneous_matrix().cast<float>();
-                cls = pObj->mnClass;
                 BBox.min = Eigen::Vector3f(-pObj->mShape.a1,-pObj->mShape.a2,-pObj->mShape.a3);
                 BBox.max = Eigen::Vector3f(pObj->mShape.a1,pObj->mShape.a2,pObj->mShape.a3);
 
@@ -1233,7 +1236,8 @@ void LocalMapping::UpdateObjNeRF()
                 pObj->haveNeRF = true;
                 pObj->pNeRFIdx = idx;
                 pObj->mTow_NeRF = Tow;
-                pObj->BBox_NeRF = (cls == 41 || cls == 73) ? BBox.max * 1.2f : BBox.max * 1.1f;
+                // pObj->BBox_NeRF = (cls == 41 || cls == 73) ? BBox.max * 1.2f : BBox.max * 1.1f;
+                pObj->BBox_NeRF = BBox.max;
 
                 //2D bbox for sampling rays
                 vector<nerf::FrameIdAndBbox> vFrameBbox;

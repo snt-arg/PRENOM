@@ -134,8 +134,7 @@ System::System(const string &strVocFile, const string &strSettingsFile,const str
     
     //Please note that memory is allocated in the GPU directly according to the total number of images.
     //The ideal online operation should allocate memory dynamically and incrementally.
-    int imgs = nimgs / 3;
-    mpNeRFManager->DatasetInit(fx,fy,cx,cy,H,W,imgs);
+    mpNeRFManager->DatasetInit(fx,fy,cx,cy,H,W,nimgs);
     
 }
 
@@ -190,7 +189,7 @@ cv::Mat System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, const
     return Tcw;
 }
 
-cv::Mat System::TrackRGBD(const cv::Mat &im, const cv::Mat &depthmap, const double &timestamp)
+cv::Mat System::TrackRGBD(const cv::Mat &im, const cv::Mat &depthmap, const cv::Mat &imgInstance, const double &timestamp, const string &strDatasetPath)
 {
     if(mSensor!=RGBD)
     {
@@ -232,7 +231,7 @@ cv::Mat System::TrackRGBD(const cv::Mat &im, const cv::Mat &depthmap, const doub
     }
     }
 
-    cv::Mat Tcw = mpTracker->GrabImageRGBD(im,depthmap,timestamp);
+    cv::Mat Tcw = mpTracker->GrabImageRGBD(im,depthmap,imgInstance,timestamp,strDatasetPath);
 
     unique_lock<mutex> lock2(mMutexState);
     mTrackingState = mpTracker->mState;
