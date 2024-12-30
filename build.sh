@@ -16,6 +16,6 @@ cmake --build build --config Release -j $1
 cd ../../
 echo "Configuring and building RO-MAP ..."
 cmake . -B build
-cmake --build build --config Release -j $1
+cmake --build build --config RelWithDebInfo -j $1
 
 echo "Done ..."

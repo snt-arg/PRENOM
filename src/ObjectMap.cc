@@ -293,38 +293,50 @@ void Object_Map::CalculateObjectPose(const Frame& CurrentFrame)
     
     cv::Mat twobj = cv::Mat::zeros(3,1,CV_32F);
     vector<float> X_axis,Y_axis,Z_axis;
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
 
     {
         unique_lock<mutex> lock(mMutexMapPoints);
-
-        for(MapPoint* pMP : mvpMapPoints)
+        
+        for(const auto& pMP : mvpMapPoints)
         {   
             if(pMP->isBad())
                 continue;
 
             cv::Mat Pos = pMP->GetWorldPos();
-            X_axis.push_back(Pos.at<float>(0));
-            Y_axis.push_back(Pos.at<float>(1));
-            Z_axis.push_back(Pos.at<float>(2));
+            Eigen::Vector3d Pos_eigen = Converter::toVector3d(Pos);
+            pcl::PointXYZ point;
+            point.x = Pos_eigen(0);
+            point.y = Pos_eigen(1);
+            point.z = Pos_eigen(2);
+            cloud->points.push_back(point);
         }
-        
-        sort(X_axis.begin(),X_axis.end());
-        sort(Y_axis.begin(),Y_axis.end());
-        sort(Z_axis.begin(),Z_axis.end());
-
-        twobj.at<float>(0) = (X_axis[0] + X_axis[X_axis.size()-1]) / 2;
-        twobj.at<float>(1) = (Y_axis[0] + Y_axis[Y_axis.size()-1]) / 2;
-        twobj.at<float>(2) = (Z_axis[0] + Z_axis[Z_axis.size()-1]) / 2;
-        
-        //using for project axis, to calculate rotation
-        vector<float> length;
-        length.push_back((X_axis[X_axis.size()-1] - X_axis[0]) / 2);
-        length.push_back((Y_axis[Y_axis.size()-1] - Y_axis[0]) / 2);
-        length.push_back((Z_axis[Z_axis.size()-1] - Z_axis[0]) / 2);
-        sort(length.begin(),length.end());
-        mfLength = length[2];
-
     }
+    RemoveOutliers(cloud);
+
+    // populate the X,Y,Z axis
+    for(const auto& point : cloud->points)
+    {
+        X_axis.push_back(point.x);
+        Y_axis.push_back(point.y);
+        Z_axis.push_back(point.z);
+    }
+
+    sort(X_axis.begin(),X_axis.end());
+    sort(Y_axis.begin(),Y_axis.end());
+    sort(Z_axis.begin(),Z_axis.end());
+
+    twobj.at<float>(0) = (X_axis[0] + X_axis[X_axis.size()-1]) / 2;
+    twobj.at<float>(1) = (Y_axis[0] + Y_axis[Y_axis.size()-1]) / 2;
+    twobj.at<float>(2) = (Z_axis[0] + Z_axis[Z_axis.size()-1]) / 2;
+    
+    //using for project axis, to calculate rotation
+    vector<float> length;
+    length.push_back((X_axis[X_axis.size()-1] - X_axis[0]) / 2);
+    length.push_back((Y_axis[Y_axis.size()-1] - Y_axis[0]) / 2);
+    length.push_back((Z_axis[Z_axis.size()-1] - Z_axis[0]) / 2);
+    sort(length.begin(),length.end());
+    mfLength = length[2];
     
     //calculate and update yaw
     if(mlatestFrameLines.rows() > 2 && !mLastBbox.mbEdgeAndSmall)
@@ -622,27 +634,37 @@ void Object_Map::CalculateObjectShape()
     Eigen::Matrix3d R = mTobjw.to_homogeneous_matrix().block(0,0,3,3);
     cv::Mat Robjw = Converter::toCvMat(R);
 
-    unique_lock<mutex> lock(mMutexMapPoints);
-
     //calculate object center
     vector<float> Obj_X_axis,Obj_Y_axis,Obj_Z_axis;
-    vector<Eigen::Vector3d> points;
-    
-    for(MapPoint* pMP : mvpMapPoints)
-    {   
-        if(pMP->isBad())
-                continue;
-        
-        cv::Mat Pos = pMP->GetWorldPos();
-        Eigen::Vector3d ObjPos = R * Converter::toVector3d(Pos);
-        //cout<<"size:  "<<ObjPos(0)<<"  "<<ObjPos(1)<<"  "<<ObjPos(2)<<" "<<endl;
-        Obj_X_axis.push_back(ObjPos(0));
-        Obj_Y_axis.push_back(ObjPos(1));
-        Obj_Z_axis.push_back(ObjPos(2));
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
 
-        points.push_back(ObjPos);
+    {    
+        unique_lock<mutex> lock(mMutexMapPoints);
+        
+        for(const auto& pMP : mvpMapPoints)
+        {   
+            if(pMP->isBad())
+                    continue;
+            
+            cv::Mat Pos = pMP->GetWorldPos();
+            Eigen::Vector3d ObjPos = R * Converter::toVector3d(Pos);
+            pcl::PointXYZ point;
+            point.x = ObjPos(0);
+            point.y = ObjPos(1);
+            point.z = ObjPos(2);
+            cloud->points.push_back(point);
+        }
     }
-    
+    RemoveOutliers(cloud);
+
+    // populate the X,Y,Z axes
+    for(const auto& point : cloud->points)
+    {
+        Obj_X_axis.push_back(point.x);
+        Obj_Y_axis.push_back(point.y);
+        Obj_Z_axis.push_back(point.z);
+    }
+
     sort(Obj_X_axis.begin(),Obj_X_axis.end());
     sort(Obj_Y_axis.begin(),Obj_Y_axis.end());
     sort(Obj_Z_axis.begin(),Obj_Z_axis.end());
@@ -908,6 +930,9 @@ void Object_Map::InsertHistoryBboxAndTwc(const Frame& CurrentFrame)
 
 void Object_Map::AlignToCanonical()
 {
+    // time this function
+    auto start = std::chrono::high_resolution_clock::now();
+
     // load the normalized object shape
     const std::string filepath = "models/" + to_string(mnClass) + ".ply";
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
@@ -916,9 +941,16 @@ void Object_Map::AlignToCanonical()
     cloud->height = 1;
     cloud->points.resize(cloud->width * cloud->height);
 
-    // make a KD-Tree
-    pcl::KdTreeFLANN<pcl::PointXYZ>::Ptr tree(new pcl::KdTreeFLANN<pcl::PointXYZ>);
-    tree->setInputCloud(cloud);
+    // metric to normalized resolution conversion
+    const float metric_resolution = 0.02;
+    const float current_volume = mShape.a1 * mShape.a2 * mShape.a3 * 8;
+    const float normalized_resolution = metric_resolution / pow(current_volume, 1.0/3.0);
+    std::cout << "Normalized resolution: " << normalized_resolution << std::endl;
+
+    // make a octree to check the occupancy of the object
+    pcl::octree::OctreePointCloud<pcl::PointXYZ> tree(normalized_resolution);
+    tree.setInputCloud(cloud);
+    tree.addPointsFromInputCloud();
 
     // get the current pose and extent of the object - extents inflated by 10%
     const Eigen::Matrix4d Tow = mShape.mTobjw.to_homogeneous_matrix();
@@ -930,9 +962,9 @@ void Object_Map::AlignToCanonical()
     bboxMin = (bboxMin - Eigen::Vector3d(0.005,0.005,0.005)) * 1.1;
     bboxMax = (bboxMax + Eigen::Vector3d(0.005,0.005,0.005)) * 1.1;
 
-    // get the accuracy of the point cloud across the orthognal directions 
+    // get the accuracy of the point cloud across the valid orthognal directions (right-handed 
     std::vector<float> angles = {0, M_PI/2, M_PI, 3*M_PI/2};
-    float accuracy[4];
+    int scores[4];
     std::vector<std::pair<Eigen::Matrix4d, Eigen::Vector3d>> results;
     pcl::PointCloud<pcl::PointXYZ>::Ptr object(new pcl::PointCloud<pcl::PointXYZ>);
     Eigen::Vector3d newBboxMin, newBboxMax;
@@ -947,53 +979,142 @@ void Object_Map::AlignToCanonical()
         newBboxMax = newBboxMax.cwiseAbs();
         newBboxMin = -newBboxMax;
 
-        // transform the point cloud
-        object->clear();
-        for(MapPoint* pMP : mvpMapPoints)
-        {
-            if(pMP->isBad())
-                continue;
-            Eigen::Vector3d pos = newTow.block(0,0,3,3) * Converter::toVector3d(pMP->GetWorldPos()) + newTow.block(0,3,3,1);
-            pos = (pos - newBboxMin).cwiseQuotient(newBboxMax - newBboxMin);
-            object->push_back(pcl::PointXYZ(pos(0),pos(1),pos(2)));
+        // transform the point cloud to the object coordinate space
+        {    
+            unique_lock<mutex> lock(mMutexMapPoints);
+         
+            object->clear();
+            for(MapPoint* pMP : mvpMapPoints)
+            {
+                if(pMP->isBad())
+                    continue;
+                Eigen::Vector3d pos = newTow.block(0,0,3,3) * Converter::toVector3d(pMP->GetWorldPos()) + newTow.block(0,3,3,1);
+                pos = (pos - newBboxMin).cwiseQuotient(newBboxMax - newBboxMin);
+                object->emplace_back(pos(0),pos(1),pos(2));
+            }
         }
-        accuracy[i] = ComputePointCloudAccuracy(tree, object);
-        results.push_back(std::make_pair(newTow, newBboxMax));
+        
+        // store the results
+        scores[i] = ComputeOccupancyScoreOctree(tree, object);
+        results.emplace_back(newTow, newBboxMax);
     }
 
     // find the best alignment
-    std::cout << "All accuracies: " << std::endl;
+    std::cout << "All scores: " << std::endl;
     for(int i = 0; i < 4; i++)
-        std::cout << accuracy[i] << std::endl;
+        std::cout << scores[i] << std::endl;
     int best = 0;
     for(int i = 1; i < 4; i++)
     {
-        if(accuracy[i] < accuracy[best])
+        if(scores[i] > scores[best])
             best = i;
     }
 
+    // output the time taken
+    auto end = std::chrono::high_resolution_clock::now();
+    std::cout << "Alignment took " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << " us" << std::endl;
+
+    // once a coarse alignment has been found, refine the alignment using ICP
+    pcl::PointCloud<pcl::PointXYZ>::Ptr object_aligned(new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::PointCloud<pcl::PointXYZ>::Ptr prior_aligned(new pcl::PointCloud<pcl::PointXYZ>);
+    const Eigen::Matrix4d coarseTow = results[best].first;
+    const Eigen::Vector3d coarseBboxMax = results[best].second;
+    const Eigen::Vector3d coarseBboxMin = -coarseBboxMax;
+
+    { // the aligned object in the object frame
+        unique_lock<mutex> lock(mMutexMapPoints);
+
+        for (const auto& pMP : mvpMapPoints)
+        {
+            if(pMP->isBad())
+                continue;
+            Eigen::Vector3d pos = coarseTow.block(0,0,3,3) * Converter::toVector3d(pMP->GetWorldPos()) + coarseTow.block(0,3,3,1);
+            object_aligned->emplace_back(pos(0),pos(1),pos(2));
+        }
+    }
+    
+    // the canonical prior object in the object frame
+    for(const auto& point : cloud->points)
+    {
+        Eigen::Vector3d pos = {point.x, point.y, point.z};
+        pos = pos.cwiseProduct(coarseBboxMax - coarseBboxMin) + coarseBboxMin;
+        prior_aligned->emplace_back(pos(0),pos(1),pos(2));
+    }
+
+    // [Debug] - check the accuracy before alignment
+    start = std::chrono::high_resolution_clock::now();
+    pcl::octree::OctreePointCloud<pcl::PointXYZ> prior_tree(metric_resolution);
+    prior_tree.setInputCloud(prior_aligned);
+    prior_tree.addPointsFromInputCloud();
+    std::cout << "Prior accuracy: " << ComputeOccupancyScoreOctree(prior_tree, object_aligned) << std::endl;
+
+    // the ICP algorithm - constrained to be 4 dof - translation and rotation about the z-axis
+    // [TODO] - parameterize the ICP algorithm
+    pcl::IterativeClosestPointNonLinear<pcl::PointXYZ, pcl::PointXYZ> icp;
+    pcl::registration::WarpPointRigid4D<pcl::PointXYZ, pcl::PointXYZ>::Ptr warp_fcn 
+        (new pcl::registration::WarpPointRigid4D<pcl::PointXYZ, pcl::PointXYZ>);
+    pcl::registration::TransformationEstimationLM<pcl::PointXYZ, pcl::PointXYZ>::Ptr te 
+        (new pcl::registration::TransformationEstimationLM<pcl::PointXYZ, pcl::PointXYZ>);
+    te->setWarpFunction (warp_fcn);
+    icp.setTransformationEstimation(te);
+    icp.setMaximumIterations(100);
+    icp.setInputSource(object_aligned);
+    icp.setInputTarget(prior_aligned);
+
+    // [Debug] - check the accuracy after alignment
+    icp.align(*object_aligned);
+    std::cout << icp.getFinalTransformation() << std::endl;
+    std::cout << "Prior accuracy: " << ComputeOccupancyScoreOctree(prior_tree, object_aligned) << std::endl;
+    end = std::chrono::high_resolution_clock::now();
+    std::cout << "ICP took " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << " us" << std::endl;
+
+    // if transformation is too large, reject the alignment
+    // check translation against the diagonal of the bounding box (should be < 10%)
+    // check rotation to be lower than 30 degrees of yaw
+    Eigen::Matrix4d refinement = icp.getFinalTransformation().cast<double>();
+    if(refinement.block(0,3,3,1).norm() > 0.10 * (coarseBboxMax - coarseBboxMin).norm())
+    {
+        std::cout << "ICP output rejected because of large translation" << std::endl;
+        refinement = Eigen::Matrix4d::Identity();
+    }
+    else if (refinement(0,0) < 0.866)
+    {
+        std::cout << "ICP output rejected because of large rotation" << std::endl;
+        refinement = Eigen::Matrix4d::Identity();
+    }
+    const Eigen::Matrix4d fineTow = refinement.inverse() * coarseTow;
+
     // apply the best alignment
-    mShape.mTobjw = SE3Quat(results[best].first.block(0,0,3,3), results[best].first.block(0,3,3,1));
-    mShape.a1 = results[best].second(0);
-    mShape.a2 = results[best].second(1);
-    mShape.a3 = results[best].second(2);
+    mShape.mTobjw = SE3Quat(fineTow.block(0,0,3,3), fineTow.block(0,3,3,1));
+    mShape.a1 = coarseBboxMax(0);
+    mShape.a2 = coarseBboxMax(1);
+    mShape.a3 = coarseBboxMax(2);
     mShape.mfMaxDist = sqrt(mShape.a1 * mShape.a1 + mShape.a2 * mShape.a2 + mShape.a3 * mShape.a3);
     mTobjw = mShape.mTobjw;
 }
 
-float Object_Map::ComputePointCloudAccuracy(const pcl::KdTreeFLANN<pcl::PointXYZ>::Ptr& canonical, 
+int Object_Map::ComputeOccupancyScoreOctree(const pcl::octree::OctreePointCloud<pcl::PointXYZ>& octree, 
                                             const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) const
 {
-    // find the nearest neighbor for each point in the cloud
-    std::vector<int> indices;
-    std::vector<float> distances;
-    float accuracy = 0;
-    for (int i = 0; i < cloud->points.size(); i++)
+    int score = 0;
+    for (size_t i = 0; i < cloud->points.size(); i++)
     {
-        canonical->nearestKSearch(cloud->points[i], 1, indices, distances);
-        accuracy += distances[0];
+        if (octree.isVoxelOccupiedAtPoint(cloud->points[i]))
+            score++;
+        else
+            score--;
     }
-    return accuracy / cloud->points.size();
+    return score;
+}
+
+void Object_Map::RemoveOutliers(pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) const
+{
+    // [TODO] - parameterize the outlier removal
+    pcl::StatisticalOutlierRemoval<pcl::PointXYZ> sor(false);
+    sor.setInputCloud(cloud);
+    sor.setMeanK(5);
+    sor.setStddevMulThresh(1.0);
+    sor.filter(*cloud);
 }
 
 }

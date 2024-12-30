@@ -8,8 +8,16 @@
 #define OBJECT_MAP_H
 
 #include <pcl/common/common.h>
-#include<pcl/io/ply_io.h>
+#include <pcl/io/ply_io.h>
+#include <pcl/point_types.h>
+#include <pcl/filters/statistical_outlier_removal.h>
 #include <pcl/kdtree/kdtree_flann.h>
+
+#include <pcl/registration/icp.h>
+#include <pcl/registration/icp_nl.h>
+#include <pcl/registration/transformation_estimation_lm.h>
+#include "third-party/pcl_custom/WarpPointRigid4D.h"
+
 #include "opencv2/opencv.hpp"
 #include "Eigen/Core"
 #include "Eigen/Eigenvalues"
@@ -95,9 +103,9 @@ public:
 
     // Align objects to their canonical pose based on the class
     void AlignToCanonical();
-    float ComputePointCloudAccuracy(const pcl::KdTreeFLANN<pcl::PointXYZ>::Ptr& canonical, 
-                                    const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) const;
-
+    int ComputeOccupancyScoreOctree(const pcl::octree::OctreePointCloud<pcl::PointXYZ>& octree, 
+                                            const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) const;
+    void RemoveOutliers(pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) const;
 
     //Get Replace Object pointer
     Object_Map* GetReplaced();

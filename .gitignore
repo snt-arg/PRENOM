@@ -1,6 +1,7 @@
 CMakeLists.txt.user
 
 examples/Monocular/mono_tum
+examples/RGBD/rgbd_tum
 
 KeyFrameTrajectory.txt
 FrameTrajectory.txt
@@ -24,6 +25,8 @@ cmake-build-debug/
 
 # datasets
 room/
+scene1/
+*.ply
 
 output/*
 !output/.gitkeep

@@ -7,15 +7,15 @@ ENDIF()
 
 
 add_definitions(-Wno-unused-value -Wno-unknown-pragmas -Wno-sequence-point 
-                    -Wno-delete-non-virtual-dtor -Wno-unused-but-set-variable 
-                    -Wno-sign-compare -Wno-unused-variable -Wno-return-local-addr 
-                    -Wno-unused-function -Wno-deprecated-declarations)
+               -Wno-delete-non-virtual-dtor -Wno-unused-but-set-variable 
+               -Wno-sign-compare -Wno-unused-variable -Wno-return-local-addr 
+               -Wno-unused-function -Wno-deprecated-declarations -msse4.2 -mfpmath=sse)
 
 
 MESSAGE("Build type: " ${CMAKE_BUILD_TYPE})
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall  -O3 -march=native ")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall   -O3 -march=native")
+# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall  -O3 -march=native ")
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall   -O3 -march=native")
 
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -44,7 +44,7 @@ find_package(Pangolin REQUIRED)
 ###########
 # PCL     #
 ###########
-find_package(PCL 1.7 REQUIRED)
+find_package(PCL REQUIRED)
 
 ##################
 # Mutil_Object_NeRF #
@@ -58,6 +58,7 @@ ${PROJECT_SOURCE_DIR}/include
 ${EIGEN3_INCLUDE_DIR}
 ${Pangolin_INCLUDE_DIRS}
 ${PCL_INCLUDE_DIRS}
+${PROJECT_SOURCE_DIR}/third-party
 )
 
 link_directories(${PCL_LIBRARY_DIRS})
