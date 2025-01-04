@@ -23,10 +23,21 @@ dependencies/Multi-Object-NeRF/output/*
 build/
 cmake-build-debug/
 
+# models
+models
+
+# misc
+backup
+
 # datasets
 room/
 scene1/
 *.ply
+
+# python specific
+*.pyc
+__pycache__/
+
 
 output/*
 !output/.gitkeep

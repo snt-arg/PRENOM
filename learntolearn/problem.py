@@ -7,8 +7,8 @@ class MultiObjectiveMixedMetaLearn(ElementwiseProblem):
 
     def __init__(self, **kwargs):
         vars = {
-            "num_meta_loops": Integer(bounds=(1, 3)),
-            "num_inner_iterations": Integer(bounds=(100, 300)),
+            "num_meta_loops": Integer(bounds=(15, 30)),
+            "num_inner_iterations": Integer(bounds=(100, 500)),
             "meta_lr": Real(bounds=(1e-3, 1e-1)),
             "inner_lr": Real(bounds=(1e-3, 2.5e-2)),
             "log2_hashmap_size": Integer(bounds=(14, 18)),

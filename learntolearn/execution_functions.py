@@ -11,8 +11,8 @@ import random
 from .reconstruction_evaluation import accuracy, completion
 
 
-SAPIENS_DIR = "../sap_nerf"
-TRAINING_DIR = "dependencies/Multi-Object-NeRF"
+SAPIENS_DIR = "/home/saadejazz/sap_nerf"
+TRAINING_DIR = "/home/saadejazz/RO-MAP-NG/dependencies/Multi-Object-NeRF"
 
 
 def single_train_call(
@@ -228,7 +228,7 @@ def evaluate_run(
                     scale = float(line.strip())
                 
                 # get the resulting mesh
-                ret_pc = os.path.join(TRAINING_DIR, "output", f"{identifier}_0.ply")
+                ret_pc_path = os.path.join(TRAINING_DIR, "output", f"{identifier}_0.ply")
                 gt_pc = os.path.join(test_dir, test_set, "0.obj")
                 gt_pc = trimesh.load(gt_pc, force='mesh')
                 gt_pc.vertices = gt_pc.vertices * scale
@@ -237,7 +237,7 @@ def evaluate_run(
                 gt_pc = PyntCloud.from_file(new_gt_pc)
                 gt_pc = gt_pc.get_sample("mesh_random", n=64*64*64, rgb=False, normals=False)
                 gt_pc = trimesh.Trimesh(vertices=gt_pc[["x", "y", "z"]].values)
-                ret_pc = trimesh.load(ret_pc, force='mesh')
+                ret_pc = trimesh.load(ret_pc_path, force='mesh')
                 accuracy_metric = accuracy(gt_pc.vertices, ret_pc.vertices)
                 completion_metric = completion(gt_pc.vertices, ret_pc.vertices)
                 depth_accuracies.append(accuracy_metric)
@@ -274,7 +274,7 @@ def evaluate_run(
     print("Second objective: ", second_obj)
     
     # remove the files generated from training
-    os.remove(ret_pc)
+    os.remove(ret_pc_path)
     os.remove(model_path)
     os.remove(os.path.join(TRAINING_DIR, "output", f"meta_{identifier}.ply"))
     
