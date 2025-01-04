@@ -3,14 +3,14 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 
 if __name__ == "__main__":
-    category = "laptop"
-    category_id = 63
-    pointcloud_file = f"dependencies/Multi-Object-NeRF/output/{category}.ply"
+    category = "mug"
+    pointcloud_file = f"/home/saadejazz/RO-MAP-NG/dependencies/Multi-Object-NeRF/output/meta_model.ply"
     
     # The pose of the object and the extent of the object
     with open(f"/home/saadejazz/sap_nerf/output/{category}/obj_offline/0.txt" , "r") as f:
         # ignore the first line (comment) and the first element of the second line (category id)
         lines = f.readlines()[1:]
+        category_id = int(lines[0].split()[0])
         tx, ty, tz, qx, qy, qz, qw, a1, a2, a3, a4, a5, a6 = [float(x) for x in lines[0].split()[1:]]
         print(tx, ty, tz, qx, qy, qz, qw)
     
@@ -39,4 +39,4 @@ if __name__ == "__main__":
     # pc.apply_transform(T_tri)
     
     # Save the normalized pointcloud
-    pc.export(f"models/{category_id}.ply")
+    pc.export(f"{category_id}.ply")

@@ -889,7 +889,7 @@ __global__ void VolumeRenderGradient_No_Compacted(const uint32_t nRays,const uin
     float depth_ray = depth_rays[0];
     //L1 loss
     float dloss_ddepth = 0.0f;
-    const float depth_supervision_lambda = 1.5f;
+    const float depth_supervision_lambda = 0.5f;
     if(depthtarget > 0.0f)
         dloss_ddepth = depth_supervision_lambda * (depth_ray - depthtarget >= 0.f ? 1.0f : -1.0f); 
         
@@ -2111,14 +2111,14 @@ void NeRF_Model::RenderVideo(cudaStream_t pStream, std::shared_ptr<NeRF_Dataset>
 
 }
 
-void NeRF_Model::GenerateMesh(cudaStream_t pStream, MeshData& mMeshData)
+void NeRF_Model::GenerateMesh(cudaStream_t pStream, MeshData& mMeshData, const bool saveDensity)
 {
     BoundingBox box = mBoundingBox;
     Eigen::Vector3i res3i = GetMarchingCubesRes(mMesh.res, box);
     float thresh = mMesh.thresh;
     tcnn::GPUMemory<float> density = GetDensityOnGrid(res3i, box,pStream);
 
-    MarchingCubes(box,res3i,thresh,density,mMesh.verts,mMesh.indices,pStream);
+    MarchingCubes(box,res3i,thresh,density,saveDensity,mMesh.verts,mMesh.indices,pStream);
     compute_mesh_1ring(mMesh.verts, mMesh.indices, mMesh.verts_smoothed, mMesh.vert_normals,pStream);
     compute_mesh_vertex_colors(box,pStream);
     CUDA_CHECK_THROW(cudaStreamSynchronize(pStream));

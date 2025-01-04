@@ -20,7 +20,7 @@ class NeRF
 {
 public:
 
-    NeRF();
+    NeRF(const bool saveModel = true, const int saveIdentifier = 999, const bool visualize = true);
 
     //offline train function
     bool CreateModelOffline(const string path, const bool useDenseDepth, const bool doMeta, const bool loadModel, const string modelPath);
@@ -71,6 +71,9 @@ public:
     
     bool mbUseDepth;
     int mnIteration;
+    bool mbVisualize = false;
+    bool mbSave = false; // one bool to save both mesh (meta + simple) and model (only meta)
+    int mnIdentifier;
 
     //train data
     std::shared_ptr<NeRF_Dataset> mpTrainData;

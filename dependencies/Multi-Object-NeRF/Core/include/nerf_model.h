@@ -105,7 +105,7 @@ public:
     Eigen::Matrix4f GenerateToc(const float theta,const float phi,const float r);
 
     //mesh
-    void GenerateMesh(cudaStream_t pStream,MeshData& mMeshData);
+    void GenerateMesh(cudaStream_t pStream,MeshData& mMeshData,const bool saveDensity=false);
     void TransCPUMesh(cudaStream_t pStream,CPUMeshData& cpudata);
     void TransMesh(MeshData& meshdata);
     void SaveMesh(const string outname);

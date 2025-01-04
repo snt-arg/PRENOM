@@ -471,7 +471,7 @@ __global__ void accumulate_1ring(uint32_t num_tris, const uint32_t* indices, con
 	}
 }
 
-void MarchingCubes(const BoundingBox box,const Eigen::Vector3i res3i,const float thresh,const tcnn::GPUMemory<float>& density,tcnn::GPUMemory<Eigen::Vector3f>& verts_out,tcnn::GPUMemory<uint32_t>& indices_out,cudaStream_t pStream)
+void MarchingCubes(const BoundingBox box,const Eigen::Vector3i res3i,const float thresh,const tcnn::GPUMemory<float>& density,const bool save_density,tcnn::GPUMemory<Eigen::Vector3f>& verts_out,tcnn::GPUMemory<uint32_t>& indices_out,cudaStream_t pStream)
 {
 	tcnn::GPUMemory<uint32_t> counters;
 
@@ -490,6 +490,29 @@ void MarchingCubes(const BoundingBox box,const Eigen::Vector3i res3i,const float
 	CUDA_CHECK_THROW(cudaStreamSynchronize(cudaStreamPerThread));
 	gen_vertices<<<blocks, threads, 0,pStream>>>(box, res3i, density.data(), nullptr, nullptr, thresh, counters.data());
 	gen_faces<<<blocks, threads,0,pStream>>>(res3i, density.data(), nullptr, nullptr, thresh, counters.data());
+
+	// also just store density data as a ply file
+	if (save_density) {
+		std::vector<float> cpu_density; cpu_density.resize(res3i.x()*res3i.y()*res3i.z());
+		density.copy_to_host(cpu_density);
+
+		FILE* plyfile = fopen("output/density.ply","wb");
+		if (!plyfile) {
+			throw std::runtime_error{"Failed to open " + std::string("density.ply") + " for writing."};
+		}
+		fprintf(plyfile,"ply\nformat ascii 1.0\nelement vertex %d\nproperty float x\nproperty float y\nproperty float z\nproperty float density\nend_header\n",res3i.x()*res3i.y()*res3i.z());
+
+		for (uint32_t z=0;z<res3i.z();++z) {
+			for (uint32_t y=0;y<res3i.y();++y) {
+				for (uint32_t x=0;x<res3i.x();++x) {
+					uint32_t idx = x + y * res3i.x() + z * res3i.x() * res3i.y();
+					fprintf(plyfile,"%0.5f %0.5f %0.5f %0.5f\n", x/(float)res3i.x(), y/(float)res3i.y(), z/(float)res3i.z(), cpu_density[idx]);
+				}
+			}
+		}
+		fclose(plyfile);
+	}
+
 	CUDA_CHECK_THROW(cudaStreamSynchronize(pStream));
 	std::vector<uint32_t> cpucounters; cpucounters.resize(4);
 	counters.copy_to_host(cpucounters);

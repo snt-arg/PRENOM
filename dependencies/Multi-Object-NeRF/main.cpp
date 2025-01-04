@@ -294,19 +294,18 @@ int main(int argc, char** argv)
 {
 
     cout<<"......Multi-Object NeRF Offline......"<<endl;
-    if(argc != 2)
+    if(argc != 4)
     {
-        cerr << "param error..."<<endl<<"./build/OfflineNeRF dataset_path"<<endl;
+        cerr << "param error..."<<endl<<"./build/OfflineNeRF nerf_config_path system_config_path dataset_path"<<endl;
         return 0;
     }
 
     // defining them here for readability
-    const string nerfConfigPath = "./Core/configs/base.json";
-    const string systemConfigPath = "./Core/configs/system.json";
-
-    const string datasetPath = string(argv[1]);
+    const string nerfConfigPath = string(argv[1]);
+    const string systemConfigPath = string(argv[2]);
+    const string datasetPath = string(argv[3]);
     
-    std::ifstream file("./Core/configs/system.json");
+    std::ifstream file(systemConfigPath);
     if(!file)
     {
         cerr << "config file error..."<<endl;
@@ -341,12 +340,15 @@ int main(int argc, char** argv)
         nerfManager.CreateNeRF(vObjPath[i], systemConfig);
    
     //visualization
-    std::shared_ptr<viewer> view = std::make_shared<viewer>();
-    view->AllTwc = nerfManager.GetAllTwc();
-    nerfManager.GetIntrinsics(view->fx,view->fy,view->cx,view->cy);
-    view->vpNeRFs = nerfManager.GetAllNeRF();
-    view->GenerateRays();
-    view->Run();
+    if (systemConfig["visualize"])
+    {
+        std::shared_ptr<viewer> view = std::make_shared<viewer>();
+        view->AllTwc = nerfManager.GetAllTwc();
+        nerfManager.GetIntrinsics(view->fx,view->fy,view->cx,view->cy);
+        view->vpNeRFs = nerfManager.GetAllNeRF();
+        view->GenerateRays();
+        view->Run();
+    }
     
     nerfManager.WaitThreadsEnd();
 
