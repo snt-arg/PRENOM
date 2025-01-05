@@ -116,7 +116,7 @@ def run_single_meta_iteration(
     
     # now change the new_system to load the generated model
     new_system["load_model"] = True
-    new_system["load_path"] = f"./output/{identifier}.json"
+    new_system["load_path"] = os.path.join(OUTPUT_DIR, f"{identifier}.json")
     with open(system_path, 'w') as file:
         json.dump(new_system, file)
         

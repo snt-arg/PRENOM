@@ -15,7 +15,7 @@ from learntolearn import MultiObjectiveMixedMetaLearn
 
 SAVE_EVERY = 1
 TOTAL_EVALS = 50
-POP_SIZE = 1
+POP_SIZE = 30
 LOAD_FROM = None
 
 if __name__ == '__main__':
