@@ -48,7 +48,7 @@ struct MeshState {
 	
 Eigen::Vector3i GetMarchingCubesRes(uint32_t res_1d, const BoundingBox& aabb);
 
-void MarchingCubes(const BoundingBox box,const Eigen::Vector3i res3i,const float thresh,const tcnn::GPUMemory<float>& density,const bool save_density,tcnn::GPUMemory<Eigen::Vector3f>& verts_out,tcnn::GPUMemory<uint32_t>& indices_out,cudaStream_t pStream);
+void MarchingCubes(const BoundingBox box,const Eigen::Vector3i res3i,const float thresh,const tcnn::GPUMemory<float>& density,const std::string save_density,tcnn::GPUMemory<Eigen::Vector3f>& verts_out,tcnn::GPUMemory<uint32_t>& indices_out,cudaStream_t pStream);
 
 void save_mesh(
 	tcnn::GPUMemory<Eigen::Vector3f>& verts,

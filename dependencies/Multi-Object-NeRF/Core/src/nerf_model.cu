@@ -2111,14 +2111,14 @@ void NeRF_Model::RenderVideo(cudaStream_t pStream, std::shared_ptr<NeRF_Dataset>
 
 }
 
-void NeRF_Model::GenerateMesh(cudaStream_t pStream, MeshData& mMeshData, const bool saveDensity)
+void NeRF_Model::GenerateMesh(cudaStream_t pStream, MeshData& mMeshData, const std::string saveDensityPath)
 {
     BoundingBox box = mBoundingBox;
     Eigen::Vector3i res3i = GetMarchingCubesRes(mMesh.res, box);
     float thresh = mMesh.thresh;
     tcnn::GPUMemory<float> density = GetDensityOnGrid(res3i, box,pStream);
 
-    MarchingCubes(box,res3i,thresh,density,saveDensity,mMesh.verts,mMesh.indices,pStream);
+    MarchingCubes(box,res3i,thresh,density,saveDensityPath,mMesh.verts,mMesh.indices,pStream);
     compute_mesh_1ring(mMesh.verts, mMesh.indices, mMesh.verts_smoothed, mMesh.vert_normals,pStream);
     compute_mesh_vertex_colors(box,pStream);
     CUDA_CHECK_THROW(cudaStreamSynchronize(pStream));

@@ -10,10 +10,14 @@ import random
 
 from .reconstruction_evaluation import accuracy, completion
 
-
-SAPIENS_DIR = "/home/saadejazz/sap_nerf"
+SAPIENS_DATA_DIR = "/home/saadejazz/sap_nerf/output"
 TRAINING_DIR = "/home/saadejazz/RO-MAP-NG/dependencies/Multi-Object-NeRF"
+# output directory for the trained models (needs to be the same in system.json of the training script)
+# must have a trailing slash
+OUTPUT_DIR = "/home/saadejazz/momvml_output/"
 
+# other constants
+LAMBDA_MODEL_SIZE = 0.1
 
 def single_train_call(
     base_path,
@@ -24,26 +28,6 @@ def single_train_call(
     command = f"cd {TRAINING_DIR} && __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia ./build/OfflineNeRF {base_path} {system_path} {data_dir}"
     object_training = subprocess.Popen(command, shell=True)
     object_training.wait()
-
-
-def single_meta_call(
-    category,
-    identifier,
-    base_path,
-    system_path
-):
-    # call the sapiens script to generate data and wait for it to finish
-    command = f"cd {SAPIENS_DIR} && python3 prepare_data.py {category} {identifier}"
-    data_generator = subprocess.Popen(command, shell=True)
-    data_generator.wait()
-    time.sleep(2)
-    
-    # call the object training script and wait for it to finish
-    data_dir = os.path.join(SAPIENS_DIR, "output", category, str(identifier))
-    single_train_call(base_path, system_path, data_dir)
-    
-    # remove the data directory
-    shutil.rmtree(data_dir)
 
 
 def run_single_meta_iteration(
@@ -75,8 +59,12 @@ def run_single_meta_iteration(
     # create an identifier for this run
     identifier = np.random.randint(0, 10000000)
     
+    # get all the available data within the category
+    # [TODO] - use an Object-Oriented approach to get the entire dataset once
+    data = os.listdir(os.path.join(SAPIENS_DATA_DIR, category, "train"))
+    
     # create a base json file
-    with open(f'{TRAINING_DIR}/Core/configs/base.json', 'r') as file:
+    with open(os.path.join(TRAINING_DIR, 'Core/configs/base.json'), 'r') as file:
         base = json.load(file)
         
     new_base = base.copy()
@@ -88,10 +76,9 @@ def run_single_meta_iteration(
     new_base["network"]["n_hidden_layers"] = n_hidden_layers
     
     # save the new json file
-    base_path = f'{TRAINING_DIR}/Core/configs/base_{identifier}.json'
+    base_path = os.path.join(OUTPUT_DIR, f'base_{identifier}.json')
     with open(base_path, 'w') as file:
         json.dump(new_base, file)
-        
         
     # create a system json file
     new_system = {
@@ -102,6 +89,8 @@ def run_single_meta_iteration(
         
         "save_model": True,
         "save_identifier": identifier,
+        
+        "output_dir": OUTPUT_DIR,
         
         "load_model": False,
         "load_path": "",
@@ -116,12 +105,14 @@ def run_single_meta_iteration(
         "meta_n_loops": 1
     }
     
-    system_path = f'{TRAINING_DIR}/Core/configs/system_{identifier}.json'
+    system_path = os.path.join(OUTPUT_DIR, f'system_{identifier}.json')
     with open(system_path, 'w') as file:
         json.dump(new_system, file)
     
     # call the single call function to get a starting model
-    single_meta_call(category, identifier, base_path, system_path)
+    data_dir = random.choice(data)
+    data_dir = os.path.join(SAPIENS_DATA_DIR, category, "train", data_dir)
+    single_train_call(base_path, system_path, data_dir)
     
     # now change the new_system to load the generated model
     new_system["load_model"] = True
@@ -131,7 +122,9 @@ def run_single_meta_iteration(
         
     # run the meta loop
     for _ in range(num_meta_loops - 1):
-        single_meta_call(category, identifier, base_path, system_path)
+        data_dir = random.choice(data)
+        data_dir = os.path.join(SAPIENS_DATA_DIR, category, "train", data_dir)
+        single_train_call(base_path, system_path, data_dir)
         
     # delete the json files
     os.remove(base_path)
@@ -157,10 +150,8 @@ def evaluate_run(
     use_depths = [True, False]
     
     # get all the test sets
-    test_dir = os.path.join(SAPIENS_DIR, "output", category, "test")
+    test_dir = os.path.join(SAPIENS_DATA_DIR, category, "test")
     test_sets = os.listdir(test_dir)
-    # test_sets = [x for x in test_sets if int(x) < 20]
-    # test_sets = random.sample(test_sets, k=1)
     print(test_sets)
     
     # set a new base config
@@ -175,11 +166,12 @@ def evaluate_run(
     new_base["network"]["n_hidden_layers"] = n_hidden_layers
     
     # save the new json file
-    base_path = f'{TRAINING_DIR}/Core/configs/base_{identifier}.json'
+    base_path = os.path.join(OUTPUT_DIR, f'base_{identifier}.json')
     with open(base_path, 'w') as file:
         json.dump(new_base, file)
     
     # set the system config
+    model_path = os.path.join(OUTPUT_DIR, f"{identifier}.json")
     new_system = {
         "do_meta": False,
         
@@ -188,8 +180,10 @@ def evaluate_run(
         "save_model": True,
         "save_identifier": identifier,
         
+        "output_dir": OUTPUT_DIR,
+        
         "load_model": True,
-        "load_path": f"./output/{identifier}.json",
+        "load_path": model_path,
         
         "visualize": False,
         
@@ -199,7 +193,7 @@ def evaluate_run(
         "meta_n_steps": 1,
         "meta_n_loops": 1
     }
-    system_path = f'{TRAINING_DIR}/Core/configs/system_{identifier}.json'
+    system_path = os.path.join(OUTPUT_DIR, f'system_{identifier}.json')
     with open(system_path, 'w') as file:
         json.dump(new_system, file)
   
@@ -228,13 +222,13 @@ def evaluate_run(
                     scale = float(line.strip())
                 
                 # get the resulting mesh
-                ret_pc_path = os.path.join(TRAINING_DIR, "output", f"{identifier}_0.ply")
+                ret_pc_path = os.path.join(OUTPUT_DIR, f"{identifier}_0.ply")
                 gt_pc = os.path.join(test_dir, test_set, "0.obj")
                 gt_pc = trimesh.load(gt_pc, force='mesh')
                 gt_pc.vertices = gt_pc.vertices * scale
-                new_gt_pc = os.path.join(test_dir, test_set, "0.ply")
-                gt_pc.export(new_gt_pc)
-                gt_pc = PyntCloud.from_file(new_gt_pc)
+                new_gt_pc_path = os.path.join(OUTPUT_DIR, f"{identifier}_gt.ply")
+                gt_pc.export(new_gt_pc_path)
+                gt_pc = PyntCloud.from_file(new_gt_pc_path)
                 gt_pc = gt_pc.get_sample("mesh_random", n=64*64*64, rgb=False, normals=False)
                 gt_pc = trimesh.Trimesh(vertices=gt_pc[["x", "y", "z"]].values)
                 ret_pc = trimesh.load(ret_pc_path, force='mesh')
@@ -255,14 +249,13 @@ def evaluate_run(
     print("Final results:")
     print("Mean accuracy: ", np.mean(accuracies))
     print("Mean completion: ", np.mean(completions))
-    first_obj = (np.mean(accuracies) + np.mean(completions))/2
+    first_objective = (np.mean(accuracies) + np.mean(completions))/2
   
     # remove the json files
     os.remove(base_path)
     os.remove(system_path)
   
     # second objective is the size of the saved model and training time
-    model_path = os.path.join(TRAINING_DIR, "output", f"{identifier}.json")
     model_size = os.path.getsize(model_path)
     model_size = model_size / (1024 * 1024) # in MB
     print("Model size: ", model_size)
@@ -271,16 +264,16 @@ def evaluate_run(
     time_per_iteration = ((toc - tic) * 1000) / total_iterations # in ms
     print("Time per iteration: ", time_per_iteration)
     
-    lambda_model_size = 0.30
-    second_obj = lambda_model_size * model_size + time_per_iteration
-    print("Second objective: ", second_obj)
+    second_objective = LAMBDA_MODEL_SIZE * model_size + time_per_iteration
+    print("Second objective: ", second_objective)
     
     # remove the files generated from training
     os.remove(ret_pc_path)
     os.remove(model_path)
-    os.remove(os.path.join(TRAINING_DIR, "output", f"meta_{identifier}.ply"))
+    os.remove(new_gt_pc_path)
+    os.remove(os.path.join(OUTPUT_DIR, f"meta_{identifier}.ply"))
     
-    return first_obj, second_obj
+    return first_objective, second_objective
     
 if __name__ == "__main__":
     # Test a single run

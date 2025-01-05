@@ -9,6 +9,11 @@
     "load_model": true,
     "load_path": "./output/laptop.json",
 
+    "save_model": true,
+    "save_identifier": 1235,
+
+    "output_dir": "./output/",
+
     "visualize": true,
 
     "n_iters_per_step": 10,

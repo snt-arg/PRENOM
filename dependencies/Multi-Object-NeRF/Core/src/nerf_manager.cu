@@ -75,7 +75,8 @@ bool NerfManagerOffline::CreateNeRF(const string objectFile, const json &systemC
     std::shared_ptr<NeRF> NeRFInstance = std::make_shared<NeRF>(
         systemConfig["save_model"],
         systemConfig["save_identifier"],
-        systemConfig["visualize"]);
+        systemConfig["visualize"],
+        systemConfig["output_dir"]);
     mvpNeRFs.push_back(NeRFInstance);
     
     //Associate Dataset

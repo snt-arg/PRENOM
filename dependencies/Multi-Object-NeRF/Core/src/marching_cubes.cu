@@ -471,7 +471,7 @@ __global__ void accumulate_1ring(uint32_t num_tris, const uint32_t* indices, con
 	}
 }
 
-void MarchingCubes(const BoundingBox box,const Eigen::Vector3i res3i,const float thresh,const tcnn::GPUMemory<float>& density,const bool save_density,tcnn::GPUMemory<Eigen::Vector3f>& verts_out,tcnn::GPUMemory<uint32_t>& indices_out,cudaStream_t pStream)
+void MarchingCubes(const BoundingBox box,const Eigen::Vector3i res3i,const float thresh,const tcnn::GPUMemory<float>& density,const std::string save_density,tcnn::GPUMemory<Eigen::Vector3f>& verts_out,tcnn::GPUMemory<uint32_t>& indices_out,cudaStream_t pStream)
 {
 	tcnn::GPUMemory<uint32_t> counters;
 
@@ -492,13 +492,13 @@ void MarchingCubes(const BoundingBox box,const Eigen::Vector3i res3i,const float
 	gen_faces<<<blocks, threads,0,pStream>>>(res3i, density.data(), nullptr, nullptr, thresh, counters.data());
 
 	// also just store density data as a ply file
-	if (save_density) {
+	if (save_density != "") {
 		std::vector<float> cpu_density; cpu_density.resize(res3i.x()*res3i.y()*res3i.z());
 		density.copy_to_host(cpu_density);
 
-		FILE* plyfile = fopen("output/density.ply","wb");
+		FILE* plyfile = fopen(save_density.c_str(),"w");
 		if (!plyfile) {
-			throw std::runtime_error{"Failed to open " + std::string("density.ply") + " for writing."};
+			throw std::runtime_error{"Failed to open " + std::string(save_density) + " for writing."};
 		}
 		fprintf(plyfile,"ply\nformat ascii 1.0\nelement vertex %d\nproperty float x\nproperty float y\nproperty float z\nproperty float density\nend_header\n",res3i.x()*res3i.y()*res3i.z());
 

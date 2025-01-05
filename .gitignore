@@ -20,16 +20,20 @@ dependencies/Multi-Object-NeRF/Core/build/
 dependencies/Multi-Object-NeRF/Core/lib/
 dependencies/Multi-Object-NeRF/output/*
 
+# build and containers
 build/
 build-*
-*.sif
 cmake-build-debug/
 
 # models
 models
+checkpoints
 
 # misc
 backup
+
+# containers
+*.sif
 *.tar
 
 # datasets
