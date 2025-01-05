@@ -7,12 +7,12 @@ class MultiObjectiveMixedMetaLearn(ElementwiseProblem):
 
     def __init__(self, **kwargs):
         vars = {
-            "num_meta_loops": Integer(bounds=(15, 30)),
-            "num_inner_iterations": Integer(bounds=(100, 500)),
+            "num_meta_loops": Integer(bounds=(10, 40)),
+            "num_inner_iterations": Integer(bounds=(100, 1000)),
             "meta_lr": Real(bounds=(1e-3, 1e-1)),
             "inner_lr": Real(bounds=(1e-3, 2.5e-2)),
             "log2_hashmap_size": Integer(bounds=(14, 18)),
-            "per_level_scale": Real(bounds=(1.26, 1.50)),
+            "per_level_scale": Choice(options=[1.25992, 1.31951, 1.38191, 1.44727, 1.51572]),
             "n_neurons": Choice(options=[16, 32, 64]),
             "n_hidden_layers": Integer(bounds=(1, 2))
         }

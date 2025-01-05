@@ -255,6 +255,7 @@ def evaluate_run(
     print("Final results:")
     print("Mean accuracy: ", np.mean(accuracies))
     print("Mean completion: ", np.mean(completions))
+    first_obj = (np.mean(accuracies) + np.mean(completions))/2
   
     # remove the json files
     os.remove(base_path)
@@ -270,7 +271,8 @@ def evaluate_run(
     time_per_iteration = ((toc - tic) * 1000) / total_iterations # in ms
     print("Time per iteration: ", time_per_iteration)
     
-    second_obj = model_size + time_per_iteration
+    lambda_model_size = 0.30
+    second_obj = lambda_model_size * model_size + time_per_iteration
     print("Second objective: ", second_obj)
     
     # remove the files generated from training
@@ -278,7 +280,7 @@ def evaluate_run(
     os.remove(model_path)
     os.remove(os.path.join(TRAINING_DIR, "output", f"meta_{identifier}.ply"))
     
-    return (np.mean(accuracies) + np.mean(completions))/2, model_size 
+    return first_obj, second_obj
     
 if __name__ == "__main__":
     # Test a single run
