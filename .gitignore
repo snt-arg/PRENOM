@@ -21,6 +21,8 @@ dependencies/Multi-Object-NeRF/Core/lib/
 dependencies/Multi-Object-NeRF/output/*
 
 build/
+build-*
+*.sif
 cmake-build-debug/
 
 # models
@@ -28,6 +30,7 @@ models
 
 # misc
 backup
+*.tar
 
 # datasets
 room/
