@@ -1409,6 +1409,20 @@ bool NeRF_Model::SaveMetaModel(const string path)
 		std::cout << "Exception while saving model: " << e.what() << std::endl;
         return false;
 	}
+    std::cout << "Meta Model saved to " << path << std::endl;
+    return true;
+}
+
+bool NeRF_Model::SaveModel(const string path)
+{
+    try {
+        std::string json_string = mpTrainer->serialize(false).dump(4);
+        std::ofstream out{path};
+        out << json_string;
+    } catch (std::exception& e) {
+		std::cout << "Exception while saving model: " << e.what() << std::endl;
+        return false;
+	}
     std::cout << "Model saved to " << path << std::endl;
     return true;
 }

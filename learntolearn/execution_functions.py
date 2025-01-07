@@ -175,7 +175,8 @@ def evaluate_run(
         json.dump(new_base, file)
     
     # set the system config
-    model_path = os.path.join(output_dir, f"{identifier}.json")
+    model_path = os.path.join(output_dir, f"{identifier}_0.json")
+    meta_model_path = os.path.join(output_dir, f"meta_{identifier}.json")
     new_system = {
         "do_meta": False,
         
@@ -187,7 +188,7 @@ def evaluate_run(
         "output_dir": output_dir,
         
         "load_model": load_meta_model,
-        "load_path": model_path,
+        "load_path": meta_model_path,
         
         "visualize": False,
         
@@ -266,7 +267,11 @@ def evaluate_run(
     os.remove(system_path)
   
     # second objective is the size of the saved model and training time
-    model_size = os.path.getsize(model_path)
+    model_size = 0
+    if load_meta_model:
+        model_size = os.path.getsize(meta_model_path)
+    else:
+        model_size = os.path.getsize(model_path)
     model_size = model_size / (1024 * 1024) # in MB
     print("Model size: ", model_size)
     
@@ -280,9 +285,11 @@ def evaluate_run(
     
     # remove the files generated from training
     os.remove(ret_pc_path)
-    os.remove(model_path)
     os.remove(new_gt_pc_path)
-    os.remove(os.path.join(output_dir, f"meta_{identifier}.ply"))
+    os.remove(model_path)
+    if load_meta_model:
+        os.remove(meta_model_path)
+        os.remove(os.path.join(output_dir, f"meta_{identifier}.ply"))
     
     return first_objective, second_objective
     

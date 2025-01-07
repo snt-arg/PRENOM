@@ -87,6 +87,7 @@ public:
     bool ResetNetwork();
     bool ResetMetaModel();
 
+    bool SaveModel(const string path);
     bool SaveMetaModel(const string path);
     bool LoadModel(const string path, const bool loadMeta);
 

@@ -185,7 +185,7 @@ void NeRF::TrainMeta(const int nMetaLoops, const int nMetaSteps, const int nMeta
     // save the model
     if (mbSave)
     {
-        if (!mpModel->SaveMetaModel(mOutputDir + std::to_string(mnIdentifier) + ".json"))
+        if (!mpModel->SaveMetaModel(mOutputDir + "meta_" + std::to_string(mnIdentifier) + ".json"))
         {
             cerr << "Error saving the meta model" << endl;
             exit(0);
@@ -238,6 +238,13 @@ void NeRF::TrainOffline(const int nSteps, const int nItersPerStep)
 
     if (mbSave)
     {
+        // save the model
+        if (!mpModel->SaveModel(mOutputDir + std::to_string(mnIdentifier) + "_" + std::to_string(mId) + ".json"))
+        {
+            cerr << "Error saving the model" << endl;
+            exit(0);
+        }
+
         // use both identifier (default: 999) and object id to save all object meshes
         mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"");
         mpModel->TransCPUMesh(mpModel->mpInferenceStream,mCPUMeshData);
