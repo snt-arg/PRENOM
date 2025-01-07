@@ -9,14 +9,14 @@ class MultiObjectiveMixedMetaLearn(ElementwiseProblem):
         self.category = kwargs.pop("category", None)
         print(f"Category: {self.category}")
         vars = {
-            "num_meta_loops": Integer(bounds=(10, 50)),
-            "num_inner_iterations": Integer(bounds=(100, 1000)),
+            "num_meta_loops": Integer(bounds=(25, 45)),
+            "num_inner_iterations": Integer(bounds=(500, 1000)),
             "meta_lr": Real(bounds=(1e-3, 1e-1)),
             "inner_lr": Real(bounds=(1e-3, 2.5e-2)),
             "log2_hashmap_size": Integer(bounds=(14, 18)),
             "per_level_scale": Choice(options=[1.25992, 1.31951, 1.38191, 1.44727]),
-            "n_neurons": Choice(options=[16, 32, 64]),
-            "n_hidden_layers": Integer(bounds=(1, 2))
+            "n_neurons": Choice(options=[16, 32, 64, 128]),
+            "n_hidden_layers": Choice(options=[1, 2, 3])
         }
         super().__init__(vars=vars, n_obj=2, n_ieq_constr=0, **kwargs)
 

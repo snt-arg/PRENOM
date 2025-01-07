@@ -7,6 +7,7 @@ import shutil
 import trimesh
 from pyntcloud import PyntCloud
 import random
+import sys
 
 from .reconstruction_evaluation import accuracy, completion
 
@@ -17,7 +18,8 @@ TRAINING_DIR = "/home/saadejazz/RO-MAP-NG/dependencies/Multi-Object-NeRF"
 OUTPUT_DIR = "/home/saadejazz/momvml_output/"
 
 # other constants
-LAMBDA_MODEL_SIZE = 0.1
+LAMBDA_MODEL_SIZE = 0.10
+LAMBDA_TRAIN_TIME = 0.55
 
 def single_train_call(
     base_path,
@@ -56,8 +58,12 @@ def run_single_meta_iteration(
     - n_hidden_layers (int): The number of hidden layers: (1 - 3)    
     """
     
+    # output directory based on category
+    output_dir = os.path.join(OUTPUT_DIR, category, "") # need a trailing slash
+    os.makedirs(output_dir, exist_ok=True)
+    
     # create an identifier for this run
-    identifier = np.random.randint(0, 10000000)
+    identifier = np.random.randint(0, 100000000)
     
     # get all the available data within the category
     # [TODO] - use an Object-Oriented approach to get the entire dataset once
@@ -76,7 +82,7 @@ def run_single_meta_iteration(
     new_base["network"]["n_hidden_layers"] = n_hidden_layers
     
     # save the new json file
-    base_path = os.path.join(OUTPUT_DIR, f'base_{identifier}.json')
+    base_path = os.path.join(output_dir, f'base_{identifier}.json')
     with open(base_path, 'w') as file:
         json.dump(new_base, file)
         
@@ -90,7 +96,7 @@ def run_single_meta_iteration(
         "save_model": True,
         "save_identifier": identifier,
         
-        "output_dir": OUTPUT_DIR,
+        "output_dir": output_dir,
         
         "load_model": False,
         "load_path": "",
@@ -105,7 +111,7 @@ def run_single_meta_iteration(
         "meta_n_loops": 1
     }
     
-    system_path = os.path.join(OUTPUT_DIR, f'system_{identifier}.json')
+    system_path = os.path.join(output_dir, f'system_{identifier}.json')
     with open(system_path, 'w') as file:
         json.dump(new_system, file)
     
@@ -116,7 +122,7 @@ def run_single_meta_iteration(
     
     # now change the new_system to load the generated model
     new_system["load_model"] = True
-    new_system["load_path"] = os.path.join(OUTPUT_DIR, f"{identifier}.json")
+    new_system["load_path"] = os.path.join(output_dir, f"{identifier}.json")
     with open(system_path, 'w') as file:
         json.dump(new_system, file)
         
@@ -140,12 +146,13 @@ def evaluate_run(
     n_neurons,
     n_hidden_layers
 ):
+    output_dir = os.path.join(OUTPUT_DIR, category, "") # need a trailing slash
+    
     # call the object evaluation script and wait for it to finish
     inner_loops_to_test = [
-         50,
-        100,
-        200,
-        # 300,
+         80,
+        160,
+        240,
     ]
     use_depths = [True, False]
     
@@ -166,12 +173,12 @@ def evaluate_run(
     new_base["network"]["n_hidden_layers"] = n_hidden_layers
     
     # save the new json file
-    base_path = os.path.join(OUTPUT_DIR, f'base_{identifier}.json')
+    base_path = os.path.join(output_dir, f'base_{identifier}.json')
     with open(base_path, 'w') as file:
         json.dump(new_base, file)
     
     # set the system config
-    model_path = os.path.join(OUTPUT_DIR, f"{identifier}.json")
+    model_path = os.path.join(output_dir, f"{identifier}.json")
     new_system = {
         "do_meta": False,
         
@@ -180,7 +187,7 @@ def evaluate_run(
         "save_model": True,
         "save_identifier": identifier,
         
-        "output_dir": OUTPUT_DIR,
+        "output_dir": output_dir,
         
         "load_model": True,
         "load_path": model_path,
@@ -193,7 +200,7 @@ def evaluate_run(
         "meta_n_steps": 1,
         "meta_n_loops": 1
     }
-    system_path = os.path.join(OUTPUT_DIR, f'system_{identifier}.json')
+    system_path = os.path.join(output_dir, f'system_{identifier}.json')
     with open(system_path, 'w') as file:
         json.dump(new_system, file)
   
@@ -222,11 +229,11 @@ def evaluate_run(
                     scale = float(line.strip())
                 
                 # get the resulting mesh
-                ret_pc_path = os.path.join(OUTPUT_DIR, f"{identifier}_0.ply")
+                ret_pc_path = os.path.join(output_dir, f"{identifier}_0.ply")
                 gt_pc = os.path.join(test_dir, test_set, "0.obj")
                 gt_pc = trimesh.load(gt_pc, force='mesh')
                 gt_pc.vertices = gt_pc.vertices * scale
-                new_gt_pc_path = os.path.join(OUTPUT_DIR, f"{identifier}_gt.ply")
+                new_gt_pc_path = os.path.join(output_dir, f"{identifier}_gt.ply")
                 gt_pc.export(new_gt_pc_path)
                 gt_pc = PyntCloud.from_file(new_gt_pc_path)
                 gt_pc = gt_pc.get_sample("mesh_random", n=64*64*64, rgb=False, normals=False)
@@ -249,7 +256,13 @@ def evaluate_run(
     print("Final results:")
     print("Mean accuracy: ", np.mean(accuracies))
     print("Mean completion: ", np.mean(completions))
-    first_objective = (np.mean(accuracies) + np.mean(completions))/2
+    
+    # replace nans in accuracies
+    accuracies = [acc for acc in accuracies if np.isfinite(acc) else 100.0]
+    completions = [comp for comp in completions if np.isfinite(comp) else 100.0]
+    
+    first_objective = (np.mean(accuracies) + np.mean(completions)) * 1000
+    print("First objective: ", first_objective)
   
     # remove the json files
     os.remove(base_path)
@@ -264,14 +277,15 @@ def evaluate_run(
     time_per_iteration = ((toc - tic) * 1000) / total_iterations # in ms
     print("Time per iteration: ", time_per_iteration)
     
-    second_objective = LAMBDA_MODEL_SIZE * model_size + time_per_iteration
+    second_objective = LAMBDA_MODEL_SIZE * model_size + LAMBDA_TRAIN_TIME * time_per_iteration
     print("Second objective: ", second_objective)
+    sys.stdout.flush()
     
     # remove the files generated from training
     os.remove(ret_pc_path)
     os.remove(model_path)
     os.remove(new_gt_pc_path)
-    os.remove(os.path.join(OUTPUT_DIR, f"meta_{identifier}.ply"))
+    os.remove(os.path.join(output_dir, f"meta_{identifier}.ply"))
     
     return first_objective, second_objective
     
