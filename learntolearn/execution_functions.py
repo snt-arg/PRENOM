@@ -144,20 +144,17 @@ def evaluate_run(
     log2_hashmap_size,
     per_level_scale,
     n_neurons,
-    n_hidden_layers
+    n_hidden_layers,
+    load_meta_model = True,
+    inner_loops_to_test = [80, 160, 240],
+    use_depths = [True, False],
+    evaluate_folder = "test"
 ):
     output_dir = os.path.join(OUTPUT_DIR, category, "") # need a trailing slash
-    
-    # call the object evaluation script and wait for it to finish
-    inner_loops_to_test = [
-         80,
-        160,
-        240,
-    ]
-    use_depths = [True, False]
-    
+    os.makedirs(output_dir, exist_ok=True)
+
     # get all the test sets
-    test_dir = os.path.join(SAPIENS_DATA_DIR, category, "test")
+    test_dir = os.path.join(SAPIENS_DATA_DIR, category, evaluate_folder)
     test_sets = os.listdir(test_dir)
     print(test_sets)
     
@@ -189,7 +186,7 @@ def evaluate_run(
         
         "output_dir": output_dir,
         
-        "load_model": True,
+        "load_model": load_meta_model,
         "load_path": model_path,
         
         "visualize": False,
@@ -258,8 +255,8 @@ def evaluate_run(
     print("Mean completion: ", np.mean(completions))
     
     # replace nans in accuracies
-    accuracies = [acc for acc in accuracies if np.isfinite(acc) else 100.0]
-    completions = [comp for comp in completions if np.isfinite(comp) else 100.0]
+    accuracies = [acc if np.isfinite(acc) else 100.0 for acc in accuracies]
+    completions = [comp if np.isfinite(comp) else 100.0 for comp in completions]
     
     first_objective = (np.mean(accuracies) + np.mean(completions)) * 1000
     print("First objective: ", first_objective)
