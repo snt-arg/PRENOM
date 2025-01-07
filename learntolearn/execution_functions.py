@@ -21,6 +21,9 @@ OUTPUT_DIR = "/home/saadejazz/momvml_output/"
 LAMBDA_MODEL_SIZE = 0.10
 LAMBDA_TRAIN_TIME = 0.55
 
+# for evaluation
+NUM_SAMPLED_POINTS = 2**16
+
 def single_train_call(
     base_path,
     system_path,
@@ -205,8 +208,7 @@ def evaluate_run(
     accuracies = []
     completions = []
   
-    tic = time.time()
-  
+    total_time = 0
     for depth_flag in use_depths:
         new_system["use_depth"] = depth_flag
         depth_accuracies = []
@@ -219,24 +221,33 @@ def evaluate_run(
             
             for test_set in test_sets:
                 data_dir = os.path.join(test_dir, test_set)
+                tic = time.time()
                 single_train_call(base_path, system_path, data_dir)
+                total_time += time.time() - tic
                 
                 # get the scale of the object
                 with open(os.path.join(test_dir, test_set, "obj_offline/scale.txt"), 'r') as file:
                     line = file.readlines()[0]
                     scale = float(line.strip())
                 
-                # get the resulting mesh
+                # get the resulting mesh - sample fixed number of points from both meshes
+                # the generated mesh
                 ret_pc_path = os.path.join(output_dir, f"{identifier}_0.ply")
+                ret_pc = PyntCloud.from_file(ret_pc_path)
+                ret_pc = ret_pc.get_sample("mesh_random", n=NUM_SAMPLED_POINTS, rgb=False, normals=False)
+                ret_pc = trimesh.Trimesh(vertices=ret_pc[["x", "y", "z"]].values)
+                
+                # the ground truth mesh
                 gt_pc = os.path.join(test_dir, test_set, "0.obj")
                 gt_pc = trimesh.load(gt_pc, force='mesh')
                 gt_pc.vertices = gt_pc.vertices * scale
                 new_gt_pc_path = os.path.join(output_dir, f"{identifier}_gt.ply")
                 gt_pc.export(new_gt_pc_path)
                 gt_pc = PyntCloud.from_file(new_gt_pc_path)
-                gt_pc = gt_pc.get_sample("mesh_random", n=64*64*64, rgb=False, normals=False)
+                gt_pc = gt_pc.get_sample("mesh_random", n=NUM_SAMPLED_POINTS, rgb=False, normals=False)
                 gt_pc = trimesh.Trimesh(vertices=gt_pc[["x", "y", "z"]].values)
-                ret_pc = trimesh.load(ret_pc_path, force='mesh')
+                
+                # evaluate the meshes
                 accuracy_metric = accuracy(gt_pc.vertices, ret_pc.vertices)
                 completion_metric = completion(gt_pc.vertices, ret_pc.vertices)
                 depth_accuracies.append(accuracy_metric)
@@ -249,8 +260,6 @@ def evaluate_run(
         accuracies.extend(depth_accuracies)
         completions.extend(depth_completions)
     
-    toc = time.time()
-    
     print("Final results:")
     print("Mean accuracy: ", np.mean(accuracies))
     print("Mean completion: ", np.mean(completions))
@@ -259,7 +268,8 @@ def evaluate_run(
     accuracies = [acc if np.isfinite(acc) else 100.0 for acc in accuracies]
     completions = [comp if np.isfinite(comp) else 100.0 for comp in completions]
     
-    first_objective = (np.mean(accuracies) + np.mean(completions)) * 1000
+    # average chamfer distance in mm
+    first_objective = (np.mean(accuracies) + np.mean(completions)) * 500
     print("First objective: ", first_objective)
   
     # remove the json files
@@ -276,7 +286,7 @@ def evaluate_run(
     print("Model size: ", model_size)
     
     total_iterations = np.sum(inner_loops_to_test) * len(use_depths) * len(test_sets)
-    time_per_iteration = ((toc - tic) * 1000) / total_iterations # in ms
+    time_per_iteration = (total_time * 1000) / total_iterations # in ms
     print("Time per iteration: ", time_per_iteration)
     
     second_objective = LAMBDA_MODEL_SIZE * model_size + LAMBDA_TRAIN_TIME * time_per_iteration
