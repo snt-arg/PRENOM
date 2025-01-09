@@ -125,14 +125,15 @@ def run_single_meta_iteration(
     
     # now change the new_system to load the generated model
     new_system["load_model"] = True
-    new_system["load_path"] = os.path.join(output_dir, f"{identifier}.json")
+    new_system["load_path"] = os.path.join(output_dir, f"meta_{identifier}.json")
     with open(system_path, 'w') as file:
         json.dump(new_system, file)
         
     # run the meta loop
-    for _ in range(num_meta_loops - 1):
+    for i in range(num_meta_loops - 1):
         data_dir = random.choice(data)
         data_dir = os.path.join(SAPIENS_DATA_DIR, category, "train", data_dir)
+        print(f"Meta training iter {i} with data dir: {data_dir}")
         single_train_call(base_path, system_path, data_dir)
         
     # delete the json files
@@ -234,6 +235,13 @@ def evaluate_run(
                 # the generated mesh
                 ret_pc_path = os.path.join(output_dir, f"{identifier}_0.ply")
                 ret_pc = PyntCloud.from_file(ret_pc_path)
+                
+                # if no vertices are generated, skip the evaluation
+                if len(ret_pc.points) == 0:
+                    depth_accuracies.append(np.nan)
+                    depth_completions.append(np.nan)
+                    continue
+                
                 ret_pc = ret_pc.get_sample("mesh_random", n=NUM_SAMPLED_POINTS, rgb=False, normals=False)
                 ret_pc = trimesh.Trimesh(vertices=ret_pc[["x", "y", "z"]].values)
                 
@@ -265,8 +273,8 @@ def evaluate_run(
     print("Mean completion: ", np.mean(completions))
     
     # replace nans in accuracies
-    accuracies = [acc if np.isfinite(acc) else 100.0 for acc in accuracies]
-    completions = [comp if np.isfinite(comp) else 100.0 for comp in completions]
+    accuracies = [acc if np.isfinite(acc) else 1.0 for acc in accuracies]
+    completions = [comp if np.isfinite(comp) else 1.0 for comp in completions]
     
     # average chamfer distance in mm
     first_objective = (np.mean(accuracies) + np.mean(completions)) * 500
