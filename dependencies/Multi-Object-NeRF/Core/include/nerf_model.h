@@ -106,7 +106,7 @@ public:
     Eigen::Matrix4f GenerateToc(const float theta,const float phi,const float r);
 
     //mesh
-    void GenerateMesh(cudaStream_t pStream,MeshData& mMeshData,const std::string saveDensityPath = "");
+    void GenerateMesh(cudaStream_t pStream,MeshData& mMeshData,const std::string saveDensityPath = "", const bool copyDensity = true);
     void TransCPUMesh(cudaStream_t pStream,CPUMeshData& cpudata);
     void TransMesh(MeshData& meshdata);
     void SaveMesh(const string outname);
@@ -136,6 +136,8 @@ public:
     size_t mnBbox = 0;
     tcnn::GPUMemory<float> mLossMemory;
     tcnn::GPUMemory<float> mSumLossMemory;
+    tcnn::GPUMemory<float> mDensityGrid;
+    bool mbDensityLoaded = false;
     float mfPerTrainLoss = 0;
     vector<float> mHisLoss;
 
@@ -184,6 +186,7 @@ public:
     uint32_t mnRaysPerBatch = 1 << 12;  //4096
     uint32_t mnSampleNum = SampleNum;      //32
     uint32_t mnRenderSampleNum = 2 * SampleNum;      //64
+    const uint32_t mnCdfSampleNum = 1 << 5; // 32
     uint32_t mnPaddedOutWidth;
     //allocate_workspace_and_distribute
     tcnn::GPUMemoryArena::Allocation mBatchAlloc;

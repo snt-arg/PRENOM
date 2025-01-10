@@ -959,8 +959,8 @@ void Object_Map::AlignToCanonical()
     Eigen::Vector3d bboxMax = Eigen::Vector3d(mShape.a1,mShape.a2,mShape.a3);
 
     // inflate the bounding box according to the object category
-    bboxMin = (bboxMin - Eigen::Vector3d(0.005,0.005,0.005)) * 1.1;
-    bboxMax = (bboxMax + Eigen::Vector3d(0.005,0.005,0.005)) * 1.1;
+    bboxMin *= 1.1;
+    bboxMax *= 1.1;
 
     // get the accuracy of the point cloud across the valid orthognal directions (right-handed 
     std::vector<float> angles = {0, M_PI/2, M_PI, 3*M_PI/2};

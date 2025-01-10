@@ -510,6 +510,8 @@ void MarchingCubes(const BoundingBox box,const Eigen::Vector3i res3i,const float
 				}
 			}
 		}
+		// remove trailing newline
+		fseek(plyfile, -1, SEEK_CUR);
 		fclose(plyfile);
 	}
 

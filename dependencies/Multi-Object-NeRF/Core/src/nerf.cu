@@ -174,7 +174,7 @@ void NeRF::TrainMeta(const int nMetaLoops, const int nMetaSteps, const int nMeta
             const bool saveDensity = i == nMetaLoops;
             std::string savePath = "";
             if (saveDensity)
-                savePath = mOutputDir + std::to_string(mnIdentifier) + "_density.json";
+                savePath = mOutputDir + std::to_string(mnIdentifier) + "_density.ply";
             mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,savePath);
             mpModel->TransCPUMesh(mpModel->mpInferenceStream,mCPUMeshData);
         }
@@ -215,7 +215,7 @@ void NeRF::TrainOffline(const int nSteps, const int nItersPerStep)
     if (mbVisualize)
     {
         // [DEBUG] - generate a mesh for visualization before training - to see impact of initial weights
-        mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"");
+        mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"",false);
         mpModel->TransCPUMesh(mpModel->mpInferenceStream,mCPUMeshData);
         usleep(1000 * 1000);
     }
@@ -294,7 +294,7 @@ bool NeRF::CreateModelOnline(bool useSparseDepth, int Iterations, const int clas
     if (classId == 63)
     {
         mpModel->LoadModel("./models/laptop.json", false);
-        mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"");
+        mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"", false);
         mpModel->TransCPUMesh(mpModel->mpInferenceStream,mCPUMeshData);
         std::cout << "Pretrained model for laptop loaded" << std::endl;
     }
@@ -357,7 +357,7 @@ void NeRF::TrainOnline()
     
     //last time 
     mpModel->Train_Step_Online(mpTrainData,mDataMutexIdx,GetTrainIters(train_step_count));
-    mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"");
+    mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"",false);
     //mpModel->TransMesh(mMeshData);
     mpModel->TransCPUMesh(mpModel->mpInferenceStream,mCPUMeshData);
     cout<<"Id: "<<mId<<" finished! "<<endl;
