@@ -9,7 +9,8 @@ from pyntcloud import PyntCloud
 import random
 import sys
 
-from .reconstruction_evaluation import accuracy, completion
+if __name__ != "__main__":
+    from .reconstruction_evaluation import accuracy, completion
 
 SAPIENS_DATA_DIR = "/home/saadejazz/sap_nerf/output"
 TRAINING_DIR = "/home/saadejazz/RO-MAP-NG/dependencies/Multi-Object-NeRF"
@@ -273,8 +274,8 @@ def evaluate_run(
     print("Mean completion: ", np.mean(completions))
     
     # replace nans in accuracies
-    accuracies = [acc if np.isfinite(acc) else 1.0 for acc in accuracies]
-    completions = [comp if np.isfinite(comp) else 1.0 for comp in completions]
+    accuracies = [acc if np.isfinite(acc) else 2.5 for acc in accuracies]
+    completions = [comp if np.isfinite(comp) else 2.5 for comp in completions]
     
     # average chamfer distance in mm
     first_objective = (np.mean(accuracies) + np.mean(completions)) * 500
@@ -314,26 +315,26 @@ def evaluate_run(
 if __name__ == "__main__":
     # Test a single run
     identifier = run_single_meta_iteration(
-        "display",
-        num_meta_loops=10,
-        num_inner_iterations=500,
+        "laptop",
+        num_meta_loops=40,
+        num_inner_iterations=800,
         meta_lr=5e-2,
         inner_lr=1e-2,
         log2_hashmap_size=16,
         per_level_scale=1.38191,
-        n_neurons=32,
-        n_hidden_layers=2
+        n_neurons=64,
+        n_hidden_layers=1
     )
     
-    resutls = evaluate_run(
-        "display",
-        identifier=identifier,
-        inner_lr=1e-2,
-        log2_hashmap_size=16,
-        per_level_scale=1.38191,
-        n_neurons=32,
-        n_hidden_layers=2
-    )
+    # resutls = evaluate_run(
+    #     "display",
+    #     identifier=identifier,
+    #     inner_lr=1e-2,
+    #     log2_hashmap_size=16,
+    #     per_level_scale=1.38191,
+    #     n_neurons=64,
+    #     n_hidden_layers=1
+    # )
     
-    print("Mean accuracy and completion: ", resutls[0])
-    print("Model size: ", resutls[1])
+    # print("Mean accuracy and completion: ", resutls[0])
+    # print("Model size: ", resutls[1])

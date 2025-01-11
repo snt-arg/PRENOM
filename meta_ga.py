@@ -17,16 +17,20 @@ from learntolearn import MultiObjectiveMixedMetaLearn
 
 
 SAVE_EVERY = 1
-TOTAL_EVALS = 20
-POP_SIZE = 40
-LOAD_FROM = None
+TOTAL_EVALS = 25
+POP_SIZE = 15
 
 if __name__ == '__main__':
 
     category = sys.argv[1]
     
+    LOAD_FROM = None    
+    if len(sys.argv) > 2:
+        # the checkpoint
+        LOAD_FROM = f"/home/users/sejaz/momvml_checkpoints/{category}/{sys.argv[2]}.pkl"
+    
     # Create the checkpoints directory if not already present
-    checkpoint_dir = f"/home/users/sejaz/momvml_checkpoints/{category}"
+    checkpoint_dir = f"/home/users/sejaz/momvml_checkpoints_meta/{category}"
     res_dir = os.path.join(checkpoint_dir, "res")
     os.makedirs(res_dir, exist_ok=True)
 
@@ -79,8 +83,3 @@ if __name__ == '__main__':
         evals_done = next_termination
 
     print("Optimization complete!")
-
-    # Plot the final result
-    plot = Scatter()
-    plot.add(res.F, facecolor="none", edgecolor="red")
-    plot.show()
