@@ -52,13 +52,13 @@ SUBSAMPLED_STATES = {
         "n_hidden_layers": (1, 2,)
     },
     "mouse": { # final
-        "inner_lr": (0.0163, 0.225),
+        "inner_lr": (0.0163, 0.0225),
         "log2_hashmap_size": (14, 15, 17,),
         "per_level_scale": (1.25992, 1.31951, 1.38191, 1.44727,),
         "n_neurons": (16, 64,),
         "n_hidden_layers": (1, 2, 3,)
     },
-    "plant": { # final
+    "plant": {
         "inner_lr": (0.0140, 0.0150),
         "log2_hashmap_size": (14,),
         "per_level_scale": (1.25992,),
