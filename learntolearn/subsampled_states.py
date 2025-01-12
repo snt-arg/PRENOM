@@ -16,12 +16,12 @@ SUBSAMPLED_STATES = {
         "n_neurons": (64,),
         "n_hidden_layers": (1, 2,)
     },
-    "mug": {
-        "inner_lr": (0.00436, 0.0175),
-        "log2_hashmap_size": (16, 17, 18),
-        "per_level_scale": (1.25992, 1.31951),
-        "n_neurons": (16, 32, 64, 128),
-        "n_hidden_layers": (1, 2, 3)
+    "mug": { # final
+        "inner_lr": (0.00525, 0.0118),
+        "log2_hashmap_size": (14, 15, 16, 17),
+        "per_level_scale": (1.25992, 1.31951, 1.44727),
+        "n_neurons": (16, 64, 128),
+        "n_hidden_layers": (1, 2)
     },
     "ball": {
         "inner_lr": (0.0140, 0.0150),
@@ -37,11 +37,32 @@ SUBSAMPLED_STATES = {
         "n_neurons": (64, 128,),
         "n_hidden_layers": (1, 2,)
     },
-    "book": {
-        "inner_lr": (0.0185, 0.0238),
-        "log2_hashmap_size": (15, 16,),
+    "book": { # final
+        "inner_lr": (0.0188, 0.0238),
+        "log2_hashmap_size": (14, 15, 16,),
         "per_level_scale": (1.25992, 1.31951,),
-        "n_neurons": (64,),
-        "n_hidden_layers": (3, )
+        "n_neurons": (16, 64,),
+        "n_hidden_layers": (2, 3, )
+    },
+    "keyboard": { # final
+        "inner_lr": (0.0226, 0.0248),
+        "log2_hashmap_size": (14, ),
+        "per_level_scale": (1.25992, 1.31951, 1.38191, 1.44727,),
+        "n_neurons": (16, 64, 128,),
+        "n_hidden_layers": (1, 2,)
+    },
+    "mouse": { # final
+        "inner_lr": (0.0163, 0.225),
+        "log2_hashmap_size": (14, 15, 17,),
+        "per_level_scale": (1.25992, 1.31951, 1.38191, 1.44727,),
+        "n_neurons": (16, 64,),
+        "n_hidden_layers": (1, 2, 3,)
+    },
+    "plant": { # final
+        "inner_lr": (0.0140, 0.0150),
+        "log2_hashmap_size": (14,),
+        "per_level_scale": (1.25992,),
+        "n_neurons": (16,),
+        "n_hidden_layers": (1,)
     },
 }
