@@ -211,6 +211,8 @@ def evaluate_run(
     completions = []
   
     total_time = 0
+    ret_pc_path = os.path.join(output_dir, f"{identifier}_0.ply")
+    new_gt_pc_path = os.path.join(output_dir, f"{identifier}_gt.ply")
     for depth_flag in use_depths:
         new_system["use_depth"] = depth_flag
         depth_accuracies = []
@@ -234,7 +236,6 @@ def evaluate_run(
                 
                 # get the resulting mesh - sample fixed number of points from both meshes
                 # the generated mesh
-                ret_pc_path = os.path.join(output_dir, f"{identifier}_0.ply")
                 ret_pc = PyntCloud.from_file(ret_pc_path)
                 
                 # if no vertices are generated, skip the evaluation
@@ -250,7 +251,6 @@ def evaluate_run(
                 gt_pc = os.path.join(test_dir, test_set, "0.obj")
                 gt_pc = trimesh.load(gt_pc, force='mesh')
                 gt_pc.vertices = gt_pc.vertices * scale
-                new_gt_pc_path = os.path.join(output_dir, f"{identifier}_gt.ply")
                 gt_pc.export(new_gt_pc_path)
                 gt_pc = PyntCloud.from_file(new_gt_pc_path)
                 gt_pc = gt_pc.get_sample("mesh_random", n=NUM_SAMPLED_POINTS, rgb=False, normals=False)
@@ -303,8 +303,12 @@ def evaluate_run(
     sys.stdout.flush()
     
     # remove the files generated from training
+    try:
+        os.remove(new_gt_pc_path)
+    except OSError:
+        print("None of the runs succeeded :((")
+        pass
     os.remove(ret_pc_path)
-    os.remove(new_gt_pc_path)
     os.remove(model_path)
     if load_meta_model:
         os.remove(meta_model_path)

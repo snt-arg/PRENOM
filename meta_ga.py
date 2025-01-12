@@ -17,8 +17,8 @@ from learntolearn import MultiObjectiveMixedMetaLearn
 
 
 SAVE_EVERY = 1
-TOTAL_EVALS = 25
-POP_SIZE = 15
+TOTAL_EVALS = 50
+POP_SIZE = 20
 
 if __name__ == '__main__':
 
@@ -27,7 +27,7 @@ if __name__ == '__main__':
     LOAD_FROM = None    
     if len(sys.argv) > 2:
         # the checkpoint
-        LOAD_FROM = f"/home/users/sejaz/momvml_checkpoints/{category}/{sys.argv[2]}.pkl"
+        LOAD_FROM = f"/home/users/sejaz/momvml_checkpoints_meta/{category}/{sys.argv[2]}.pkl"
     
     # Create the checkpoints directory if not already present
     checkpoint_dir = f"/home/users/sejaz/momvml_checkpoints_meta/{category}"
