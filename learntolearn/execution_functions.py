@@ -32,8 +32,10 @@ def single_train_call(
 ):
     # call the object training script and wait for it to finish
     command = f"cd {TRAINING_DIR} && __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia ./build/OfflineNeRF {base_path} {system_path} {data_dir}"
-    object_training = subprocess.Popen(command, shell=True)
+    object_training = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
     object_training.wait()
+    out, _ = object_training.communicate()
+    return out
 
 
 def run_single_meta_iteration(
@@ -225,9 +227,16 @@ def evaluate_run(
             
             for test_set in test_sets:
                 data_dir = os.path.join(test_dir, test_set)
-                tic = time.time()
-                single_train_call(base_path, system_path, data_dir)
-                total_time += time.time() - tic
+                # tic = time.time()
+                out = single_train_call(base_path, system_path, data_dir)
+                # scrape the time from the output
+                out = out.decode("utf-8")
+                time = out.partition("train_time: ")[2].partition(" ")[0]
+                print("Total time: ", time)
+                sys.stdout.flush()
+                total_time += float(time)/1000.0
+                
+                # total_time += time.time() - tic
                 
                 # get the scale of the object
                 with open(os.path.join(test_dir, test_set, "obj_offline/scale.txt"), 'r') as file:
