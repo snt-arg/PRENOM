@@ -23,12 +23,12 @@ SUBSAMPLED_STATES = {
         "n_neurons": (16, 64, 128),
         "n_hidden_layers": (1, 2)
     },
-    "ball": {
+    "ball": { # final
         "inner_lr": (0.0140, 0.0150),
-        "log2_hashmap_size": (14,),
-        "per_level_scale": (1.44727,),
-        "n_neurons": (16,),
-        "n_hidden_layers": (1,)
+        "log2_hashmap_size": (14, 15,),
+        "per_level_scale": (1.38191, 1.44727,),
+        "n_neurons": (16, 32, 64),
+        "n_hidden_layers": (1, 3)
     },
     "display": { # final
         "inner_lr": (0.0193, 0.0235),
@@ -58,10 +58,10 @@ SUBSAMPLED_STATES = {
         "n_neurons": (16, 64,),
         "n_hidden_layers": (1, 2, 3,)
     },
-    "plant": {
-        "inner_lr": (0.0140, 0.0150),
-        "log2_hashmap_size": (14,),
-        "per_level_scale": (1.25992,),
+    "plant": { # final
+        "inner_lr": (0.0180, 0.0240),
+        "log2_hashmap_size": (15, 16,),
+        "per_level_scale": (1.25992, 1.31951),
         "n_neurons": (16,),
         "n_hidden_layers": (1,)
     },
