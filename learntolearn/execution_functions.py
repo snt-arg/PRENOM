@@ -43,6 +43,7 @@ def run_single_meta_iteration(
     num_meta_loops,
     num_inner_iterations,
     meta_lr,
+    meta_lr_decay,
     inner_lr,
     log2_hashmap_size,
     per_level_scale,
@@ -136,6 +137,13 @@ def run_single_meta_iteration(
     for i in range(num_meta_loops - 1):
         data_dir = random.choice(data)
         data_dir = os.path.join(SAPIENS_DATA_DIR, category, "train", data_dir)
+
+        # update the meta learning rate        
+        meta_lr = meta_lr * meta_lr_decay
+        new_base["meta_optimizer"]["nested"]["nested"]["learning_rate"] = meta_lr
+        with open(base_path, 'w') as file:
+            json.dump(new_base, file)
+        
         print(f"Meta training iter {i} with data dir: {data_dir}")
         single_train_call(base_path, system_path, data_dir)
         
@@ -329,12 +337,13 @@ if __name__ == "__main__":
     # Test a single run
     identifier = run_single_meta_iteration(
         "laptop",
-        num_meta_loops=40,
-        num_inner_iterations=800,
-        meta_lr=5e-2,
-        inner_lr=1e-2,
-        log2_hashmap_size=16,
-        per_level_scale=1.38191,
+        num_meta_loops=100,
+        num_inner_iterations=793,
+        meta_lr=0.185059555186,
+        meta_lr_decay=0.98,
+        inner_lr=0.019008237935,
+        log2_hashmap_size=14,
+        per_level_scale=1.25992,
         n_neurons=64,
         n_hidden_layers=1
     )

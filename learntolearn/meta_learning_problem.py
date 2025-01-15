@@ -17,6 +17,7 @@ class MultiObjectiveMixedMetaLearn(ElementwiseProblem):
             "num_meta_loops": Integer(bounds=(25, 50)),
             "num_inner_iterations": Integer(bounds=(500, 1000)),
             "meta_lr": Real(bounds=(1e-3, 2e-1)), # most important parameter
+            "meta_lr_decay": Real(bounds=(0.90, 1.00)),
             
             # inner learning parameters - ranges already optimised in the learning problem
             # fine-tuning parameters in the meta learning problem
@@ -35,6 +36,7 @@ class MultiObjectiveMixedMetaLearn(ElementwiseProblem):
             int(X["num_meta_loops"]),
             int(X["num_inner_iterations"]),
             float(X["meta_lr"]),
+            float(X["meta_lr_decay"]),
             float(X["inner_lr"]),
             int(X["log2_hashmap_size"]),
             float(X["per_level_scale"]),
