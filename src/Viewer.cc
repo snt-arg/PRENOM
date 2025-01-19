@@ -85,17 +85,17 @@ void Viewer::Run()
 
     pangolin::CreatePanel("menu").SetBounds(0.0,1.0,0.0,pangolin::Attach::Pix(175));
     pangolin::Var<bool> menuFollowCamera("menu.Follow Camera",true,true);
-    pangolin::Var<bool> menuShowPoints("menu.Show Points",true,true);
-    pangolin::Var<bool> menuShowKeyFrames("menu.Show KeyFrames",true,true);
+    pangolin::Var<bool> menuShowPoints("menu.Show Points",false,true);
+    pangolin::Var<bool> menuShowKeyFrames("menu.Show KeyFrames",false,true);
     pangolin::Var<bool> menuShowGraph("menu.Show Graph",false,true);
     pangolin::Var<bool> menuLocalizationMode("menu.Localization",false,true);
     pangolin::Var<bool> menuReset("menu.Reset",false,false);
 
     //RO-MAP
     pangolin::Var<bool> menuShowObject("menu.Show Objects",true,true);
-    pangolin::Var<bool> menuShowObjectMPs("menu.Show Obj MPs",false,true);
+    pangolin::Var<bool> menuShowObjectMPs("menu.Show Obj MPs",true,true);
     pangolin::Var<bool> menuShowBbox("menu.Show Bbox",true,true);
-    pangolin::Var<bool> menuShowMesh("menu.Show Mesh",false,true);
+    pangolin::Var<bool> menuShowMesh("menu.Show Mesh",true,true);
     pangolin::Var<bool> menuShowObs("menu.Show Obs",false,true);
     pangolin::Var<bool> menuRotation("menu.360 Rotation",false,true);
 

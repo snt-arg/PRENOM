@@ -15,7 +15,6 @@
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/features2d/features2d.hpp>
-#include "dependencies/line_lbd/include/line_lbd_allclass.h"
 
 #include "Viewer.h"
 #include "FrameDrawer.h"
@@ -41,13 +40,14 @@ class Map;
 class LocalMapping;
 class LoopClosing;
 class System;
+class SemanticsManager;
 
 class Tracking
 {  
 
 public:
     Tracking(System* pSys, ORBVocabulary* pVoc, FrameDrawer* pFrameDrawer, MapDrawer* pMapDrawer, Map* pMap,
-             KeyFrameDatabase* pKFDB, const string &strSettingPath, const int sensor);
+             KeyFrameDatabase* pKFDB, const string &strSettingPath, const int sensor, const string &strDataset);
 
     // Preprocess the input and call Track(). Extract features and performs stereo matching.
     cv::Mat GrabImageStereo(const cv::Mat &imRectLeft,const cv::Mat &imRectRight, const double &timestamp);
@@ -122,8 +122,10 @@ public:
     //t test 
     float tTest[101][4] = {0};
 
+    int mImgWidth, mImgHeight;
     cv::Mat mImColor;
     cv::Mat mImgInstance;
+    pcl::PointCloud<pcl::PointXYZ>::Ptr mCloud;  
     vector<cv::Point> mvPointsToDrawer;
 
     //parameter
@@ -137,6 +139,8 @@ public:
     //Asstime
     vector<int> Asstime;
     
+    // dataset string
+    string mstrDataset;
     
 protected:
 

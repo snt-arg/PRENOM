@@ -11,6 +11,10 @@
 #include "OptimizeObject.h"
 #include <chrono>
 #include "EIF.h"
+#include <omp.h>
+
+#define GRID_SIZE 64
+#define GRID_SIZE_SQ 4096
 
 namespace ORB_SLAM2
 {
@@ -635,25 +639,22 @@ void Object_Map::CalculateObjectShape()
     cv::Mat Robjw = Converter::toCvMat(R);
 
     //calculate object center
+    unique_lock<mutex> lock(mMutexMapPoints);
     vector<float> Obj_X_axis,Obj_Y_axis,Obj_Z_axis;
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
 
-    {    
-        unique_lock<mutex> lock(mMutexMapPoints);
+    for(const auto& pMP : mvpMapPoints)
+    {   
+        if(pMP->isBad())
+                continue;
         
-        for(const auto& pMP : mvpMapPoints)
-        {   
-            if(pMP->isBad())
-                    continue;
-            
-            cv::Mat Pos = pMP->GetWorldPos();
-            Eigen::Vector3d ObjPos = R * Converter::toVector3d(Pos);
-            pcl::PointXYZ point;
-            point.x = ObjPos(0);
-            point.y = ObjPos(1);
-            point.z = ObjPos(2);
-            cloud->points.push_back(point);
-        }
+        cv::Mat Pos = pMP->GetWorldPos();
+        Eigen::Vector3d ObjPos = R * Converter::toVector3d(Pos);
+        pcl::PointXYZ point;
+        point.x = ObjPos(0);
+        point.y = ObjPos(1);
+        point.z = ObjPos(2);
+        cloud->points.push_back(point);
     }
     RemoveOutliers(cloud);
 
@@ -934,7 +935,26 @@ void Object_Map::AlignToCanonical()
     auto start = std::chrono::high_resolution_clock::now();
 
     // load the normalized object shape
-    const std::string filepath = "models/" + to_string(mnClass) + ".ply";
+    std::string filepath = "models/laptop_density.ply";
+    if (mnClass == 41)
+        filepath = "models/mug_density.ply";
+    else if (mnClass == 73 || mnClass == 58)
+        filepath = "models/book_density.ply";
+    
+    std::vector<Eigen::Vector3d> vPos;
+    {
+        unique_lock<mutex> lock(mMutexMapPoints);
+        for(MapPoint* pMP : mvpMapPoints)
+        {
+            if(pMP->isBad())
+                continue;
+            vPos.push_back(Converter::toVector3d(pMP->GetWorldPos()));
+        }
+    }
+
+    // calculate object shape and pose again
+    CalculateObjectShape();
+
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::io::loadPLYFile(filepath, *cloud);
     cloud->width = cloud->points.size();
@@ -946,11 +966,44 @@ void Object_Map::AlignToCanonical()
     const float current_volume = mShape.a1 * mShape.a2 * mShape.a3 * 8;
     const float normalized_resolution = metric_resolution / pow(current_volume, 1.0/3.0);
     std::cout << "Normalized resolution: " << normalized_resolution << std::endl;
+    // const float normalized_resolution = 0.20;
+    // const float metric_resolution = normalized_resolution * pow(mShape.a1 * mShape.a2 * mShape.a3 * 8, 1.0/3.0);
 
-    // make a octree to check the occupancy of the object
-    pcl::octree::OctreePointCloud<pcl::PointXYZ> tree(normalized_resolution);
-    tree.setInputCloud(cloud);
-    tree.addPointsFromInputCloud();
+    // // make a octree to check the occupancy of the object
+    // pcl::octree::OctreePointCloud<pcl::PointXYZ> tree(normalized_resolution);
+    // tree.setInputCloud(cloud);
+    // tree.addPointsFromInputCloud();
+
+    // load the density grid
+    std::ifstream file(filepath);
+    if (!file) {
+        std::cerr << "Error opening density file" << std::endl;
+        return;
+    }
+
+    std::string line;
+    bool hasHeaderEnded = false;
+    const int nVoxels = GRID_SIZE*GRID_SIZE*GRID_SIZE;
+    float densities[nVoxels];
+
+    while (std::getline(file, line)) {
+        if (line == "end_header") {
+            hasHeaderEnded = true;
+            break;
+        }
+    }
+
+    // read the density values
+    size_t index = 0;
+    while (std::getline(file, line)) {
+        std::istringstream iss(line);
+        float density;
+        if (!(iss >> density >> density >> density >> density)) {
+            break;
+        }
+        densities[index++] = density;
+    }
+    const float* densityGrid = densities;
 
     // get the current pose and extent of the object - extents inflated by 10%
     const Eigen::Matrix4d Tow = mShape.mTobjw.to_homogeneous_matrix();
@@ -958,17 +1011,60 @@ void Object_Map::AlignToCanonical()
     Eigen::Vector3d bboxMin = Eigen::Vector3d(-mShape.a1,-mShape.a2,-mShape.a3);
     Eigen::Vector3d bboxMax = Eigen::Vector3d(mShape.a1,mShape.a2,mShape.a3);
 
-    // inflate the bounding box according to the object category
+    // // inflate the bounding box according to the object category
+    // if (mnClass == 41)
+    // {
+    //     bboxMin *= 1.2;
+    //     bboxMax *= 1.2;
+    // }
+    // else 
+    // {
+    //     bboxMin *= 1.1;
+    //     bboxMax *= 1.1;
+    // }
     bboxMin *= 1.1;
     bboxMax *= 1.1;
 
     // get the accuracy of the point cloud across the valid orthognal directions (right-handed 
     std::vector<float> angles = {0, M_PI/2, M_PI, 3*M_PI/2};
-    int scores[4];
+
+    // // add more angles depending onobject
+    // std::vector<float> extraAngles;
+    // if (mnClass == 63){
+    //     const float deviation = 5 * M_PI / 180;
+    //     for (int i = 0; i < 4; i++)
+    //     {
+    //         extraAngles.push_back(angles[i] + deviation);
+    //         extraAngles.push_back(angles[i] - deviation);
+    //     }
+    // }
+    // else if (mnClass == 41)
+    // {
+    //     const float deviation = 15 * M_PI / 180;
+    //     for (int i = 0; i < 4; i++)
+    //     {
+    //         extraAngles.push_back(angles[i] + deviation);
+    //         extraAngles.push_back(angles[i] - deviation);
+    //     }
+    // }
+
+    // // extend the angles
+    // for (const auto& angle : extraAngles)
+    //     angles.push_back(angle);
+
+    // // sample angles uniformly b/w 0 and 2pi
+    // std::vector<float> angles;
+    // const int num_samples = 36;
+    // for (int i = 0; i < num_samples; i++)
+    //     angles.push_back(i * 2 * M_PI / num_samples);
+
+    const size_t num_angles = angles.size();
+
+    int scores[num_angles];
     std::vector<std::pair<Eigen::Matrix4d, Eigen::Vector3d>> results;
     pcl::PointCloud<pcl::PointXYZ>::Ptr object(new pcl::PointCloud<pcl::PointXYZ>);
     Eigen::Vector3d newBboxMin, newBboxMax;
-    for(int i = 0; i < 4; i++)
+    for(int i = 0; i < num_angles; i++)
     {   
         // Determine the new object pose and extent
         Eigen::Matrix3d R_const = Converter::eulerAnglesToMatrix(angles[i]);
@@ -980,31 +1076,28 @@ void Object_Map::AlignToCanonical()
         newBboxMin = -newBboxMax;
 
         // transform the point cloud to the object coordinate space
-        {    
-            unique_lock<mutex> lock(mMutexMapPoints);
-         
-            object->clear();
-            for(MapPoint* pMP : mvpMapPoints)
-            {
-                if(pMP->isBad())
-                    continue;
-                Eigen::Vector3d pos = newTow.block(0,0,3,3) * Converter::toVector3d(pMP->GetWorldPos()) + newTow.block(0,3,3,1);
-                pos = (pos - newBboxMin).cwiseQuotient(newBboxMax - newBboxMin);
-                object->emplace_back(pos(0),pos(1),pos(2));
-            }
+        object->clear();
+        for(const auto& pos : vPos)
+        {
+            Eigen::Vector3d newPos = newTow.block(0,0,3,3) * pos + newTow.block(0,3,3,1);
+            newPos = (newPos - newBboxMin).cwiseQuotient(newBboxMax - newBboxMin);
+            if (newPos(0) < 0 || newPos(0) > 1 || newPos(1) < 0 || newPos(1) > 1 || newPos(2) < 0 || newPos(2) > 1)
+                continue;
+            object->emplace_back(newPos(0),newPos(1),newPos(2));
         }
         
         // store the results
-        scores[i] = ComputeOccupancyScoreOctree(tree, object);
+        // scores[i] = ComputeOccupancyScoreOctree(tree, object);
+        scores[i] = ComputeDensityScore(densityGrid, object);
         results.emplace_back(newTow, newBboxMax);
     }
 
     // find the best alignment
     std::cout << "All scores: " << std::endl;
-    for(int i = 0; i < 4; i++)
+    for(int i = 0; i < num_angles; i++)
         std::cout << scores[i] << std::endl;
     int best = 0;
-    for(int i = 1; i < 4; i++)
+    for(int i = 1; i < num_angles; i++)
     {
         if(scores[i] > scores[best])
             best = i;
@@ -1021,16 +1114,10 @@ void Object_Map::AlignToCanonical()
     const Eigen::Vector3d coarseBboxMax = results[best].second;
     const Eigen::Vector3d coarseBboxMin = -coarseBboxMax;
 
-    { // the aligned object in the object frame
-        unique_lock<mutex> lock(mMutexMapPoints);
-
-        for (const auto& pMP : mvpMapPoints)
-        {
-            if(pMP->isBad())
-                continue;
-            Eigen::Vector3d pos = coarseTow.block(0,0,3,3) * Converter::toVector3d(pMP->GetWorldPos()) + coarseTow.block(0,3,3,1);
-            object_aligned->emplace_back(pos(0),pos(1),pos(2));
-        }
+    for (const auto& pos : vPos)
+    {
+        Eigen::Vector3d newPos = coarseTow.block(0,0,3,3) * pos + coarseTow.block(0,3,3,1);
+        object_aligned->emplace_back(newPos(0),newPos(1),newPos(2));
     }
     
     // the canonical prior object in the object frame
@@ -1057,7 +1144,7 @@ void Object_Map::AlignToCanonical()
         (new pcl::registration::TransformationEstimationLM<pcl::PointXYZ, pcl::PointXYZ>);
     te->setWarpFunction (warp_fcn);
     icp.setTransformationEstimation(te);
-    icp.setMaximumIterations(100);
+    icp.setMaximumIterations(200);
     icp.setInputSource(object_aligned);
     icp.setInputTarget(prior_aligned);
 
@@ -1085,6 +1172,7 @@ void Object_Map::AlignToCanonical()
     const Eigen::Matrix4d fineTow = refinement.inverse() * coarseTow;
 
     // apply the best alignment
+    // const Eigen::Matrix4d fineTow = coarseTow;
     mShape.mTobjw = SE3Quat(fineTow.block(0,0,3,3), fineTow.block(0,3,3,1));
     mShape.a1 = coarseBboxMax(0);
     mShape.a2 = coarseBboxMax(1);
@@ -1112,9 +1200,43 @@ void Object_Map::RemoveOutliers(pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) cons
     // [TODO] - parameterize the outlier removal
     pcl::StatisticalOutlierRemoval<pcl::PointXYZ> sor(false);
     sor.setInputCloud(cloud);
-    sor.setMeanK(5);
+    sor.setMeanK(25);
     sor.setStddevMulThresh(1.0);
     sor.filter(*cloud);
+}
+
+
+int Object_Map::ComputeDensityScore(const float* densityGrid, const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) const
+{
+    double energy = 0;
+    #pragma omp parallel for reduction(+:energy)
+    for (size_t i = 0; i < cloud->points.size(); ++i)
+    {
+        const auto& point = cloud->points[i];
+        if (point.x > 1 || point.x < 0 || point.y > 1 || point.y < 0 || point.z > 1 || point.z < 0)
+            std::cout << "Something went wrong" << std::endl;
+
+        // trilinear interpolation
+        const int ix0 = floor((GRID_SIZE-1) * point.x);
+        const int iy0 = floor((GRID_SIZE-1) * point.y);
+        const int iz0 = floor((GRID_SIZE-1) * point.z);
+        const int ix1 = std::min(ix0 + 1, GRID_SIZE - 1);
+        const int iy1 = std::min(iy0 + 1, GRID_SIZE - 1);
+        const int iz1 = std::min(iz0 + 1, GRID_SIZE - 1);
+        const float xd = GRID_SIZE * point.x - ix0;
+        const float yd = GRID_SIZE * point.y - iy0;
+        const float zd = GRID_SIZE * point.z - iz0;
+        const float c00 = densityGrid[ix0 + GRID_SIZE * iy0 + GRID_SIZE_SQ * iz0] * (1 - xd) + densityGrid[ix1 + GRID_SIZE * iy0 + GRID_SIZE_SQ * iz0] * xd;
+        const float c10 = densityGrid[ix0 + GRID_SIZE * iy1 + GRID_SIZE_SQ * iz0] * (1 - xd) + densityGrid[ix1 + GRID_SIZE * iy1 + GRID_SIZE_SQ * iz0] * xd;
+        const float c01 = densityGrid[ix0 + GRID_SIZE * iy0 + GRID_SIZE_SQ * iz1] * (1 - xd) + densityGrid[ix1 + GRID_SIZE * iy0 + GRID_SIZE_SQ * iz1] * xd;
+        const float c11 = densityGrid[ix0 + GRID_SIZE * iy1 + GRID_SIZE_SQ * iz1] * (1 - xd) + densityGrid[ix1 + GRID_SIZE * iy1 + GRID_SIZE_SQ * iz1] * xd;
+        const float c0 = c00 * (1 - yd) + c10 * yd;
+        const float c1 = c01 * (1 - yd) + c11 * yd;
+        const float c = c0 * (1 - zd) + c1 * zd;
+        energy += c;
+    }
+
+    return static_cast<int>(energy);
 }
 
 }

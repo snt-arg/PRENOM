@@ -262,17 +262,17 @@ void NeRF::SetAttributes(const int Class,const Eigen::Matrix4f& ObjTow,const Bou
     mObjTow = ObjTow;
     mBoundingBox = BoundingBox;
     
-    //Appropriately expand the 3D Bounding Box
-    if(Class == 41 || Class == 73)
-    {
-        mBoundingBox.max = 1.2f * mBoundingBox.max;
-        mBoundingBox.min = 1.2f * mBoundingBox.min;
-    }
-    else
-    {
-        mBoundingBox.max = 1.1f * mBoundingBox.max;
-        mBoundingBox.min = 1.1f * mBoundingBox.min;
-    }
+    // //Appropriately expand the 3D Bounding Box
+    // if(Class == 41 || Class == 73)
+    // {
+    //     mBoundingBox.max = 1.2f * mBoundingBox.max;
+    //     mBoundingBox.min = 1.2f * mBoundingBox.min;
+    // }
+    // else
+    // {
+    //     mBoundingBox.max = 1.1f * mBoundingBox.max;
+    //     mBoundingBox.min = 1.1f * mBoundingBox.min;
+    // }
     
     mFrameIdBbox.resize(maxnumBbox);
     mnBbox = 0;
@@ -291,13 +291,20 @@ bool NeRF::CreateModelOnline(bool useSparseDepth, int Iterations, const int clas
         exit(0);
     }
 
+    // load appropriate model
     if (classId == 63)
-    {
         mpModel->LoadModel("./models/laptop.json", false);
-        mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"", false);
-        mpModel->TransCPUMesh(mpModel->mpInferenceStream,mCPUMeshData);
-        std::cout << "Pretrained model for laptop loaded" << std::endl;
-    }
+    else if (classId == 41)
+        mpModel->LoadModel("./models/mug.json", false);
+    else if (classId == 73)
+        mpModel->LoadModel("./models/book.json", false);
+    else
+        return true;
+    
+    // generate first time mesh
+    mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"", false);
+    mpModel->TransCPUMesh(mpModel->mpInferenceStream,mCPUMeshData);
+        
 
     return true;
 }
@@ -360,6 +367,7 @@ void NeRF::TrainOnline()
     mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"",false);
     //mpModel->TransMesh(mMeshData);
     mpModel->TransCPUMesh(mpModel->mpInferenceStream,mCPUMeshData);
+    mpModel->SaveMesh(std::to_string(mnIdentifier) + "_" + std::to_string(mId) + ".ply");
     cout<<"Id: "<<mId<<" finished! "<<endl;
     
 }

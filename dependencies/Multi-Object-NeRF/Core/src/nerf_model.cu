@@ -1576,41 +1576,41 @@ bool NeRF_Model::LoadModel(const string path, const bool loadMeta)
         return false;
 	}
 
-    // get the density and save it
-    std::string density_file = path.substr(0, path.find_last_of("/")) + "/laptop_density.ply";
-    std::ifstream file(density_file);
-    if (!file) {
-        std::cerr << "Error opening density file" << std::endl;
-        return false;
-    }
+    // // get the density and save it
+    // std::string density_file = path.substr(0, path.find_last_of("/")) + "/laptop_density.ply";
+    // std::ifstream file(density_file);
+    // if (!file) {
+    //     std::cerr << "Error opening density file" << std::endl;
+    //     return false;
+    // }
 
-    std::string line;
-    bool hasHeaderEnded = false;
-    const int nVoxels = GRID_SIZE*GRID_SIZE*GRID_SIZE;
-    float densities[nVoxels];
+    // std::string line;
+    // bool hasHeaderEnded = false;
+    // const int nVoxels = GRID_SIZE*GRID_SIZE*GRID_SIZE;
+    // float densities[nVoxels];
 
-    while (std::getline(file, line)) {
-        if (line == "end_header") {
-            hasHeaderEnded = true;
-            break;
-        }
-    }
+    // while (std::getline(file, line)) {
+    //     if (line == "end_header") {
+    //         hasHeaderEnded = true;
+    //         break;
+    //     }
+    // }
 
-    // read the density values
-    size_t index = 0;
-    while (std::getline(file, line)) {
-        std::istringstream iss(line);
-        float density;
-        if (!(iss >> density >> density >> density >> density)) {
-            break;
-        }
-        densities[index++] = density;
-    }
+    // // read the density values
+    // size_t index = 0;
+    // while (std::getline(file, line)) {
+    //     std::istringstream iss(line);
+    //     float density;
+    //     if (!(iss >> density >> density >> density >> density)) {
+    //         break;
+    //     }
+    //     densities[index++] = density;
+    // }
 
-    mDensityGrid.resize(nVoxels);
-    mDensityGrid.copy_from_host(densities);
-    mbDensityLoaded = true;
-    std::cout << "Loaded " << index << " densities" << std::endl;
+    // mDensityGrid.resize(nVoxels);
+    // mDensityGrid.copy_from_host(densities);
+    // mbDensityLoaded = true;
+    // std::cout << "Loaded " << index << " densities" << std::endl;
 
     return true;
 }

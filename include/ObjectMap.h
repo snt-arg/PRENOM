@@ -105,6 +105,7 @@ public:
     void AlignToCanonical();
     int ComputeOccupancyScoreOctree(const pcl::octree::OctreePointCloud<pcl::PointXYZ>& octree, 
                                             const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) const;
+    int ComputeDensityScore(const float* densityGrid, const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) const;
     void RemoveOutliers(pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) const;
 
     //Get Replace Object pointer
@@ -157,6 +158,7 @@ public:
 
     std::vector<MapPoint*> mvpMapPoints;
     std::vector<MapPoint*> mvpNewAddMapPoints;
+    pcl::PointCloud<pcl::PointXYZ>::Ptr mCloud;
     cv::Mat mSumPointsPos;
     //position mean and standard deviation
     vector<cv::Mat> mvHistoryPos;

@@ -10,6 +10,7 @@
 */
 
 #include "Tracking.h"
+#include "Utils.h"
 #include<opencv2/core/core.hpp>
 #include<opencv2/features2d/features2d.hpp>
 
@@ -33,10 +34,10 @@ using namespace std;
 namespace ORB_SLAM2
 {
 
-Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer, MapDrawer *pMapDrawer, Map *pMap, KeyFrameDatabase* pKFDB, const string &strSettingPath, const int sensor):
+Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer, MapDrawer *pMapDrawer, Map *pMap, KeyFrameDatabase* pKFDB, const string &strSettingPath, const int sensor, const string &strDataset):
     mState(NO_IMAGES_YET), mSensor(sensor), mbOnlyTracking(false), mbInitObjectMap(false), mbVO(false), mpORBVocabulary(pVoc),
     mpKeyFrameDB(pKFDB), mpInitializer(static_cast<Initializer*>(NULL)), mpSystem(pSys), mpViewer(NULL),
-    mpFrameDrawer(pFrameDrawer), mpMapDrawer(pMapDrawer), mpMap(pMap), mnLastRelocFrameId(0)
+    mpFrameDrawer(pFrameDrawer), mpMapDrawer(pMapDrawer), mpMap(pMap), mnLastRelocFrameId(0), mstrDataset(strDataset)
 {
     // Load camera parameters from settings file
 
@@ -136,41 +137,6 @@ Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer,
             mDepthMapFactor = 1.0f/mDepthMapFactor;
     }
 
-    //RO-MAP
-
-    //Line detect--------------------------------------------------------
-    cout<<endl<<"Load RO-MAP Parameters..."<<endl;
-    int ExtendBox = fSettings["ExtendBox"];
-    mbExtendBox = ExtendBox;
-    cout<<"ExtendBox: "<<mbExtendBox<<endl;
-
-    int CheckBoxEdge = fSettings["CheckBoxEdge"];
-    mbCheckBoxEdge = CheckBoxEdge;
-    cout<<"CheckBoxEdge: "<<CheckBoxEdge<<endl;
-
-    cv::FileNode node = fSettings["IgnoreCategory"];
-    cout<<"IgnoreCategory: ";
-    for(auto it = node.begin();it!=node.end();it++)
-    {
-        int number = *it;
-        mvIgnoreCategory.insert(number);
-        cout<<number<<" ";
-    }
-    cout<<endl;
-    mnBoxMapPoints = fSettings["BoxMapPoints"];
-    cout<<"BoxMapPoints: "<<mnBoxMapPoints<<endl;
-    if(mnBoxMapPoints < 1)
-    {
-        cerr<<"Failed to load RO-MAP parameters, Please add parameters to yaml file..."<<endl;
-        exit(0);
-    }
-
-    mnMinimumContinueObs = fSettings["Minimum.continue.obs"];
-    cout<<"MinimumContinueObs: "<<mnMinimumContinueObs<<endl;
-
-    AddMPsDistMultiple = fSettings["Add.MPs.distance.multiple"];
-    cout<<"AddMPsDistMultiple: "<<AddMPsDistMultiple<<endl;
-
     Object_Map::MergeMPsDistMultiple = fSettings["Merge.MPs.distance.multiple"];
     cout<<"MergeMPsDistMultiple: "<<Object_Map::MergeMPsDistMultiple<<endl;
 
@@ -190,33 +156,6 @@ Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer,
 
     LocalMapping::mfAngleChange = fSettings["NeRF.AngleChange"];
     cout<<"AngleChange: "<<LocalMapping::mfAngleChange<<endl;
-
-    int numoctaves = 1;
-    float octaveratio = 2.0;
-    bool use_LSD = false;  // use LSD detector or edline detector    
-    float line_length_thres = 15;
-    mpLineDetect = new line_lbd_detect(numoctaves,octaveratio);
-
-    mpLineDetect->use_LSD = use_LSD;
-    mpLineDetect->line_length_thres = line_length_thres;
-    mpLineDetect->save_imgs = false;
-    mpLineDetect->save_txts = false;
-    
-    //read t-test data
-    ifstream f;
-    f.open("./lib/t_test.txt");
-    if(!f.is_open())
-    {
-        cerr<<"Can't read t-test data"<<endl;
-        exit(0);
-    }
-    for(int i=0;i<101;i++)
-    {
-        for(int j=0;j<4;j++)
-            f >> tTest[i][j];  
-    }
-    f.close();
-
 }
 
 void Tracking::SetLocalMapper(LocalMapping *pLocalMapper)
@@ -282,6 +221,8 @@ cv::Mat Tracking::GrabImageRGBD(const cv::Mat &im, const cv::Mat &imD, const cv:
     mImColor = im;
     mImgInstance = imgInstance;
 
+
+
     if(mImGray.channels()==3)
     {
         if(mbRGB)
@@ -301,182 +242,6 @@ cv::Mat Tracking::GrabImageRGBD(const cv::Mat &im, const cv::Mat &imD, const cv:
         imDepth.convertTo(imDepth,CV_32F,mDepthMapFactor);
 
     mCurrentFrame = Frame(mImGray,imDepth,timestamp,mpORBextractorLeft,mpORBVocabulary,mK,mDistCoef,mbf,mThDepth);
-
-    vector<Bbox> Bboxs;
-    {
-        //offline read object detection----------------------------
-        string sYolopath = strDataset + "/" + "bbox/" + to_string(timestamp) + ".txt";
-        
-        ifstream f;
-        f.open(sYolopath);
-        if(!f.is_open())
-        {
-            cout << "yolo_detection file open fail" << endl;
-            exit(0);
-        }
-        
-        //Read txt
-        string line;
-        float num;
-        vector<float> row;
-        while(getline(f,line))
-        {
-            stringstream s(line);
-            while (s >> num)
-            {
-                row.push_back(num);
-            }
-            Bbox newBbox;
-            newBbox.mnClass = row[0];
-
-            //extend box
-            if(mbExtendBox)
-            {
-                newBbox.x = max(0.0f,row[1] - 10);
-                newBbox.y = max(0.0f,row[2] - 10);
-                newBbox.width = min(float(mImGray.cols-1) - newBbox.x,row[3] + 20);
-                newBbox.height = min(float(mImGray.rows-1) - newBbox.y,row[4] + 20); 
-            }
-            else
-            {
-                newBbox.x = row[1];
-                newBbox.y = row[2];
-                newBbox.width = row[3];
-                newBbox.height = row[4];
-            }
-            newBbox.mfConfidence = row[5];
-            Bboxs.push_back(newBbox);
-            row.clear();
-        }
-        f.close();
-
-    }
-    
-    /*Filter bad Bbox. Including the following situations:
-        Close to image edge
-        Overlap each other
-        Bbox is too large
-        */
-    if(!Bboxs.empty())
-    {
-        vector<int> resIdx(Bboxs.size(),1);
-        vector<Bbox> resBbox;
-        for(size_t i=0;i<Bboxs.size();i++)
-        {
-            if(!resIdx[i])
-                continue;
-
-            Bbox &box = Bboxs[i];
-
-            // There will be errors in target detection, and error categories can be filtered here
-            if(mvIgnoreCategory.find(box.mnClass) != mvIgnoreCategory.end())
-            {
-                resIdx[i] = 0;
-                continue;
-            }
-
-            if(mbCheckBoxEdge)
-            {
-                //Close to image edge
-                if(box.x < 20 || box.x+box.width > im.cols-20 || box.y < 20 || box.y+box.height > im.rows-20)
-                {  
-                    if(box.area() < im.cols * im.rows * 0.05)
-                    {
-                        resIdx[i] = 0;
-                        continue;
-                    }
-                    box.mbEdge = true;
-                    if(box.area() < im.cols * im.rows * 0.1)
-                        box.mbEdgeAndSmall = true;
-                }
-            }
-
-            //Bbox is large than half of img
-            if(box.area() > im.cols * im.rows * 0.5)
-            {
-                resIdx[i] = 0;
-                continue;
-            }
-            else if(box.area() < im.cols * im.rows * 0.005)
-            {
-                resIdx[i] = 0;
-                continue;
-            }
-
-            //Overlap each other
-            for(size_t j=0;j<Bboxs.size();j++)
-            {
-                if(i == j || resIdx[j] == 0)
-                    continue;
-                
-                Bbox &box_j = Bboxs[j];
-                float SizeScale = min(box_j.area(),box.area()) / max(box_j.area(),box.area());
-                if(SizeScale > 0.25)
-                {
-                    float overlap = (box & box_j).area();
-                    float IOU = overlap / (box.area() + box_j.area() - overlap);
-                    if(IOU > 0.4)
-                    {
-                        resIdx[i] = 0;
-                        resIdx[j] = 0;
-                        break;
-                    }
-                }
-            } 
-        }
-
-        for(size_t i=0;i<Bboxs.size();i++)
-        {
-            if(resIdx[i])
-                resBbox.push_back(Bboxs[i]);
-        }
-        Bboxs = resBbox;
-    }
-    
-    if(!Bboxs.empty())
-    {
-        mCurrentFrame.mbDetectObject = true;
-        mCurrentFrame.mvBbox = Bboxs;
-        mCurrentFrame.UndistortFrameBbox();
-
-        //Line detect-----------------------------------------------
-        //using distort Img
-        cv::Mat undistortImg = mImGray.clone();
-        if(mDistCoef.at<float>(0)!=0.0)
-        {
-            cv::undistort(mImGray,undistortImg,mK,mDistCoef);
-        }
-        mpLineDetect->detect_raw_lines(undistortImg,mCurrentFrame.mvLines);
-        
-        vector<KeyLine> FilterLines;
-        mpLineDetect->filter_lines(mCurrentFrame.mvLines,FilterLines);
-        mCurrentFrame.mvLines = FilterLines;
-        Eigen::MatrixXd LinesEigen(FilterLines.size(),4);
-        for(size_t i=0;i<FilterLines.size();i++)
-        {
-            LinesEigen(i,0)=FilterLines[i].startPointX;
-            LinesEigen(i,1)=FilterLines[i].startPointY;
-            LinesEigen(i,2)=FilterLines[i].endPointX;
-            LinesEigen(i,3)=FilterLines[i].endPointY;
-        }
-        mCurrentFrame.mLinesEigen = LinesEigen;
-        
-        //creat object_Frame---------------------------------------------------
-        for(size_t i=0;i<mCurrentFrame.mvBboxUn.size();i++)
-        {
-            Object_Frame object_frame;
-            object_frame.mnFrameId = mCurrentFrame.mnId;
-            object_frame.mBbox = mCurrentFrame.mvBboxUn[i];
-            object_frame.mnClass = object_frame.mBbox.mnClass;
-            object_frame.mfConfidence = object_frame.mBbox.mfConfidence;
-            mCurrentFrame.mvObjectFrame.push_back(object_frame);
-        }
-
-    }
-    
-    //Assign feature points and lines to detected objects
-    mCurrentFrame.AssignFeaturesToBbox(mImgInstance);
-    mCurrentFrame.AssignLinesToBbox();
 
     Track();
 
@@ -593,26 +358,26 @@ cv::Mat Tracking::GrabImageMonocular(const cv::Mat &im,const cv::Mat &ImgInstanc
             if(mbCheckBoxEdge)
             {
                 //Close to image edge
-                if(box.x < 20 || box.x+box.width > im.cols-20 || box.y < 20 || box.y+box.height > im.rows-20)
+                if(box.x < 20 || box.x+box.width > mImgWidth-20 || box.y < 20 || box.y+box.height > mImgHeight-20)
                 {  
-                    if(box.area() < im.cols * im.rows * 0.05)
+                    if(box.area() < mImgWidth * mImgHeight * 0.05)
                     {
                         resIdx[i] = 0;
                         continue;
                     }
                     box.mbEdge = true;
-                    if(box.area() < im.cols * im.rows * 0.1)
+                    if(box.area() < mImgWidth * mImgHeight * 0.1)
                         box.mbEdgeAndSmall = true;
                 }
             }
 
             //Bbox is large than half of img
-            if(box.area() > im.cols * im.rows * 0.5)
+            if(box.area() > mImgWidth * mImgHeight * 0.5)
             {
                 resIdx[i] = 0;
                 continue;
             }
-            else if(box.area() < im.cols * im.rows * 0.005)
+            else if(box.area() < mImgWidth * mImgHeight * 0.005)
             {
                 resIdx[i] = 0;
                 continue;
@@ -1035,7 +800,7 @@ void Tracking::StereoInitialization()
 
         mpMap->mvpKeyFrameOrigins.push_back(pKFini);
 
-        mpMapDrawer->SetCurrentCameraPose(mCurrentFrame.mTcw);
+        // mpMapDrawer->SetCurrentCameraPose(mCurrentFrame.mTcw);
 
         mState=OK;
     }
@@ -1502,6 +1267,372 @@ bool Tracking::TrackLocalMap()
 
         }
     }
+
+    
+
+    // Decide if the tracking was succesful
+    // More restrictive if there was a relocalization recently
+    if(mCurrentFrame.mnId<mnLastRelocFrameId+mMaxFrames && mnMatchesInliers<50)
+        return false;
+
+    if(mnMatchesInliers<30)
+        return false;
+    else
+        return true;
+}
+
+
+bool Tracking::NeedNewKeyFrame()
+{
+    if(mbOnlyTracking)
+        return false;
+
+    // If Local Mapping is freezed by a Loop Closure do not insert keyframes
+    if(mpLocalMapper->isStopped() || mpLocalMapper->stopRequested())
+        return false;
+
+    const int nKFs = mpMap->KeyFramesInMap();
+
+    // Do not insert keyframes if not enough frames have passed from last relocalisation
+    if(mCurrentFrame.mnId<mnLastRelocFrameId+mMaxFrames && nKFs>mMaxFrames)
+        return false;
+
+    // Tracked MapPoints in the reference keyframe
+    int nMinObs = 3;
+    if(nKFs<=2)
+        nMinObs=2;
+    int nRefMatches = mpReferenceKF->TrackedMapPoints(nMinObs);
+
+    // Local Mapping accept keyframes?
+    bool bLocalMappingIdle = mpLocalMapper->AcceptKeyFrames();
+
+    // Check how many "close" points are being tracked and how many could be potentially created.
+    int nNonTrackedClose = 0;
+    int nTrackedClose= 0;
+    if(mSensor!=System::MONOCULAR)
+    {
+        for(int i =0; i<mCurrentFrame.N; i++)
+        {
+            if(mCurrentFrame.mvDepth[i]>0 && mCurrentFrame.mvDepth[i]<mThDepth)
+            {
+                if(mCurrentFrame.mvpMapPoints[i] && !mCurrentFrame.mvbOutlier[i])
+                    nTrackedClose++;
+                else
+                    nNonTrackedClose++;
+            }
+        }
+    }
+
+    bool bNeedToInsertClose = (nTrackedClose<100) && (nNonTrackedClose>70);
+
+    // Thresholds
+    float thRefRatio = 0.75f;
+    if(nKFs<2)
+        thRefRatio = 0.4f;
+
+    if(mSensor==System::MONOCULAR)
+        thRefRatio = 0.9f;
+
+    // Condition 1a: More than "MaxFrames" have passed from last keyframe insertion
+    const bool c1a = mCurrentFrame.mnId>=mnLastKeyFrameId+mMaxFrames;
+    // Condition 1b: More than "MinFrames" have passed and Local Mapping is idle
+    const bool c1b = (mCurrentFrame.mnId>=mnLastKeyFrameId+mMinFrames && bLocalMappingIdle);
+    //Condition 1c: tracking is weak
+    const bool c1c =  mSensor!=System::MONOCULAR && (mnMatchesInliers<nRefMatches*0.25 || bNeedToInsertClose) ;
+    // Condition 2: Few tracked points compared to reference keyframe. Lots of visual odometry compared to map matches.
+    const bool c2 = ((mnMatchesInliers<nRefMatches*thRefRatio|| bNeedToInsertClose) && mnMatchesInliers>15);
+
+    if((c1a||c1b||c1c)&&c2)
+    {
+        // If the mapping accepts keyframes, insert keyframe.
+        // Otherwise send a signal to interrupt BA
+        if(bLocalMappingIdle)
+        {
+            return true;
+        }
+        else
+        {
+            mpLocalMapper->InterruptBA();
+            if(mSensor!=System::MONOCULAR)
+            {
+                if(mpLocalMapper->KeyframesInQueue()<3)
+                    return true;
+                else
+                    return false;
+            }
+            else
+                return false;
+        }
+    }
+    else
+        return false;
+}
+
+void Tracking::CreateNewKeyFrame()
+{
+    if(!mpLocalMapper->SetNotStop(true))
+        return;
+
+    KeyFrame* pKF = new KeyFrame(mCurrentFrame,mpMap,mpKeyFrameDB);
+
+    mpReferenceKF = pKF;
+    mCurrentFrame.mpReferenceKF = pKF;
+
+    if(mSensor!=System::MONOCULAR)
+    {
+        mCurrentFrame.UpdatePoseMatrices();
+
+        // We sort points by the measured depth by the stereo/RGBD sensor.
+        // We create all those MapPoints whose depth < mThDepth.
+        // If there are less than 100 close points we create the 100 closest.
+        vector<pair<float,int> > vDepthIdx;
+        vDepthIdx.reserve(mCurrentFrame.N);
+        for(int i=0; i<mCurrentFrame.N; i++)
+        {
+            float z = mCurrentFrame.mvDepth[i];
+            if(z>0)
+            {
+                vDepthIdx.push_back(make_pair(z,i));
+            }
+        }
+
+        if(!vDepthIdx.empty())
+        {
+            sort(vDepthIdx.begin(),vDepthIdx.end());
+
+            int nPoints = 0;
+            for(size_t j=0; j<vDepthIdx.size();j++)
+            {
+                int i = vDepthIdx[j].second;
+
+                bool bCreateNew = false;
+
+                MapPoint* pMP = mCurrentFrame.mvpMapPoints[i];
+                if(!pMP)
+                    bCreateNew = true;
+                else if(pMP->Observations()<1)
+                {
+                    bCreateNew = true;
+                    mCurrentFrame.mvpMapPoints[i] = static_cast<MapPoint*>(NULL);
+                }
+
+                if(bCreateNew)
+                {
+                    cv::Mat x3D = mCurrentFrame.UnprojectStereo(i);
+                    MapPoint* pNewMP = new MapPoint(x3D,pKF,mpMap);
+                    pNewMP->AddObservation(pKF,i);
+                    pKF->AddMapPoint(pNewMP,i);
+                    pNewMP->ComputeDistinctiveDescriptors();
+                    pNewMP->UpdateNormalAndDepth();
+                    mpMap->AddMapPoint(pNewMP);
+
+                    mCurrentFrame.mvpMapPoints[i]=pNewMP;
+                    nPoints++;
+                }
+                else
+                {
+                    nPoints++;
+                }
+
+                if(vDepthIdx[j].first>mThDepth && nPoints>100)
+                    break;
+            }
+        }
+    }
+
+    Frame* pCurrentFrame = new Frame(mCurrentFrame);
+    mpSystem->AddTaskToSemanticsManager(
+        SemanticsManager::Task {
+            pCurrentFrame,
+            mImGray,
+            mImgInstance
+        }
+    );
+
+    vector<Bbox> Bboxs;
+    {
+        //offline read object detection----------------------------
+        string sYolopath = mstrDataset + "/" + "bbox/" + to_string(mCurrentFrame.mTimeStamp) + ".txt";
+        
+        ifstream f;
+        f.open(sYolopath);
+        if(!f.is_open())
+        {
+            cout << "yolo_detection file open fail" << endl;
+            exit(0);
+        }
+        
+        //Read txt
+        string line;
+        float num;
+        vector<float> row;
+        while(getline(f,line))
+        {
+            stringstream s(line);
+            while (s >> num)
+            {
+                row.push_back(num);
+            }
+            Bbox newBbox;
+            newBbox.mnClass = row[0];
+
+            //extend box
+            if(mbExtendBox)
+            {
+                newBbox.x = max(0.0f,row[1] - 10);
+                newBbox.y = max(0.0f,row[2] - 10);
+                newBbox.width = min(float(mImgWidth-1) - newBbox.x,row[3] + 20);
+                newBbox.height = min(float(mImgHeight-1) - newBbox.y,row[4] + 20); 
+            }
+            else
+            {
+                newBbox.x = row[1];
+                newBbox.y = row[2];
+                newBbox.width = row[3];
+                newBbox.height = row[4];
+            }
+            newBbox.mfConfidence = row[5];
+            Bboxs.push_back(newBbox);
+            row.clear();
+        }
+        f.close();
+
+    }
+    
+    /*Filter bad Bbox. Including the following situations:
+        Close to image edge
+        Overlap each other
+        Bbox is too large
+        */
+    std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> objectClouds;
+    if(!Bboxs.empty())
+    {
+        vector<int> resIdx(Bboxs.size(),1);
+        vector<Bbox> resBbox;
+        for(size_t i=0;i<Bboxs.size();i++)
+        {
+            if(!resIdx[i])
+                continue;
+
+            Bbox &box = Bboxs[i];
+
+            // There will be errors in target detection, and error categories can be filtered here
+            if(mvIgnoreCategory.find(box.mnClass) != mvIgnoreCategory.end())
+            {
+                resIdx[i] = 0;
+                continue;
+            }
+
+            if(mbCheckBoxEdge)
+            {
+                //Close to image edge
+                if(box.x < 20 || box.x+box.width > mImgWidth-20 || box.y < 20 || box.y+box.height > mImgHeight-20)
+                {  
+                    if(box.area() < mImgWidth * mImgHeight * 0.05)
+                    {
+                        resIdx[i] = 0;
+                        continue;
+                    }
+                    box.mbEdge = true;
+                    if(box.area() < mImgWidth * mImgHeight * 0.1)
+                        box.mbEdgeAndSmall = true;
+                }
+            }
+
+            //Bbox is large than half of img
+            if(box.area() > mImgWidth * mImgHeight * 0.5)
+            {
+                resIdx[i] = 0;
+                continue;
+            }
+            else if(box.area() < mImgWidth * mImgHeight * 0.005)
+            {
+                resIdx[i] = 0;
+                continue;
+            }
+
+            //Overlap each other
+            for(size_t j=0;j<Bboxs.size();j++)
+            {
+                if(i == j || resIdx[j] == 0)
+                    continue;
+                
+                Bbox &box_j = Bboxs[j];
+                float SizeScale = min(box_j.area(),box.area()) / max(box_j.area(),box.area());
+                if(SizeScale > 0.25)
+                {
+                    float overlap = (box & box_j).area();
+                    float IOU = overlap / (box.area() + box_j.area() - overlap);
+                    if(IOU > 0.4)
+                    {
+                        resIdx[i] = 0;
+                        resIdx[j] = 0;
+                        break;
+                    }
+                }
+            } 
+        }
+
+        for(size_t i=0;i<Bboxs.size();i++)
+        {
+            if(resIdx[i])
+            {
+                resBbox.push_back(Bboxs[i]);
+
+                // // get the pointcloud for the object
+                // pcl::PointCloud<pcl::PointXYZ>::Ptr objectCloud(new pcl::PointCloud<pcl::PointXYZ>);
+                // const string sCloudpath = strDataset + "/pointclouds/" + to_string(timestamp) + "/" + to_string(i) + ".ply";
+                // pcl::io::loadPLYFile(sCloudpath, *objectCloud);
+                // objectClouds.push_back(objectCloud);
+
+            }
+        }
+        Bboxs = resBbox;
+    }
+    
+    if(!Bboxs.empty())
+    {
+        mCurrentFrame.mbDetectObject = true;
+        mCurrentFrame.mvBbox = Bboxs;
+        mCurrentFrame.UndistortFrameBbox();
+
+        //Line detect-----------------------------------------------
+        //using distort Img
+        cv::Mat undistortImg = mImGray.clone();
+        if(mDistCoef.at<float>(0)!=0.0)
+        {
+            cv::undistort(mImGray,undistortImg,mK,mDistCoef);
+        }
+        mpLineDetect->detect_raw_lines(undistortImg,mCurrentFrame.mvLines);
+        
+        vector<KeyLine> FilterLines;
+        mpLineDetect->filter_lines(mCurrentFrame.mvLines,FilterLines);
+        mCurrentFrame.mvLines = FilterLines;
+        Eigen::MatrixXd LinesEigen(FilterLines.size(),4);
+        for(size_t i=0;i<FilterLines.size();i++)
+        {
+            LinesEigen(i,0)=FilterLines[i].startPointX;
+            LinesEigen(i,1)=FilterLines[i].startPointY;
+            LinesEigen(i,2)=FilterLines[i].endPointX;
+            LinesEigen(i,3)=FilterLines[i].endPointY;
+        }
+        mCurrentFrame.mLinesEigen = LinesEigen;
+        
+        //creat object_Frame---------------------------------------------------
+        for(size_t i=0;i<mCurrentFrame.mvBboxUn.size();i++)
+        {
+            Object_Frame object_frame;
+            object_frame.mnFrameId = mCurrentFrame.mnId;
+            object_frame.mBbox = mCurrentFrame.mvBboxUn[i];
+            object_frame.mnClass = object_frame.mBbox.mnClass;
+            object_frame.mfConfidence = object_frame.mBbox.mfConfidence;
+            mCurrentFrame.mvObjectFrame.push_back(object_frame);
+        }
+    }
+    
+    //Assign feature points and lines to detected objects
+    mCurrentFrame.AssignFeaturesToBbox(mImgInstance);
+    mCurrentFrame.AssignLinesToBbox();
 
     auto startTime = std::chrono::system_clock::now();
 
@@ -2038,175 +2169,6 @@ bool Tracking::TrackLocalMap()
         //cout <<"--------------------------------------------------------" <<endl;
     }
 
-    // Decide if the tracking was succesful
-    // More restrictive if there was a relocalization recently
-    if(mCurrentFrame.mnId<mnLastRelocFrameId+mMaxFrames && mnMatchesInliers<50)
-        return false;
-
-    if(mnMatchesInliers<30)
-        return false;
-    else
-        return true;
-}
-
-
-bool Tracking::NeedNewKeyFrame()
-{
-    if(mbOnlyTracking)
-        return false;
-
-    // If Local Mapping is freezed by a Loop Closure do not insert keyframes
-    if(mpLocalMapper->isStopped() || mpLocalMapper->stopRequested())
-        return false;
-
-    const int nKFs = mpMap->KeyFramesInMap();
-
-    // Do not insert keyframes if not enough frames have passed from last relocalisation
-    if(mCurrentFrame.mnId<mnLastRelocFrameId+mMaxFrames && nKFs>mMaxFrames)
-        return false;
-
-    // Tracked MapPoints in the reference keyframe
-    int nMinObs = 3;
-    if(nKFs<=2)
-        nMinObs=2;
-    int nRefMatches = mpReferenceKF->TrackedMapPoints(nMinObs);
-
-    // Local Mapping accept keyframes?
-    bool bLocalMappingIdle = mpLocalMapper->AcceptKeyFrames();
-
-    // Check how many "close" points are being tracked and how many could be potentially created.
-    int nNonTrackedClose = 0;
-    int nTrackedClose= 0;
-    if(mSensor!=System::MONOCULAR)
-    {
-        for(int i =0; i<mCurrentFrame.N; i++)
-        {
-            if(mCurrentFrame.mvDepth[i]>0 && mCurrentFrame.mvDepth[i]<mThDepth)
-            {
-                if(mCurrentFrame.mvpMapPoints[i] && !mCurrentFrame.mvbOutlier[i])
-                    nTrackedClose++;
-                else
-                    nNonTrackedClose++;
-            }
-        }
-    }
-
-    bool bNeedToInsertClose = (nTrackedClose<100) && (nNonTrackedClose>70);
-
-    // Thresholds
-    float thRefRatio = 0.75f;
-    if(nKFs<2)
-        thRefRatio = 0.4f;
-
-    if(mSensor==System::MONOCULAR)
-        thRefRatio = 0.9f;
-
-    // Condition 1a: More than "MaxFrames" have passed from last keyframe insertion
-    const bool c1a = mCurrentFrame.mnId>=mnLastKeyFrameId+mMaxFrames;
-    // Condition 1b: More than "MinFrames" have passed and Local Mapping is idle
-    const bool c1b = (mCurrentFrame.mnId>=mnLastKeyFrameId+mMinFrames && bLocalMappingIdle);
-    //Condition 1c: tracking is weak
-    const bool c1c =  mSensor!=System::MONOCULAR && (mnMatchesInliers<nRefMatches*0.25 || bNeedToInsertClose) ;
-    // Condition 2: Few tracked points compared to reference keyframe. Lots of visual odometry compared to map matches.
-    const bool c2 = ((mnMatchesInliers<nRefMatches*thRefRatio|| bNeedToInsertClose) && mnMatchesInliers>15);
-
-    if((c1a||c1b||c1c)&&c2)
-    {
-        // If the mapping accepts keyframes, insert keyframe.
-        // Otherwise send a signal to interrupt BA
-        if(bLocalMappingIdle)
-        {
-            return true;
-        }
-        else
-        {
-            mpLocalMapper->InterruptBA();
-            if(mSensor!=System::MONOCULAR)
-            {
-                if(mpLocalMapper->KeyframesInQueue()<3)
-                    return true;
-                else
-                    return false;
-            }
-            else
-                return false;
-        }
-    }
-    else
-        return false;
-}
-
-void Tracking::CreateNewKeyFrame()
-{
-    if(!mpLocalMapper->SetNotStop(true))
-        return;
-
-    KeyFrame* pKF = new KeyFrame(mCurrentFrame,mpMap,mpKeyFrameDB);
-
-    mpReferenceKF = pKF;
-    mCurrentFrame.mpReferenceKF = pKF;
-
-    if(mSensor!=System::MONOCULAR)
-    {
-        mCurrentFrame.UpdatePoseMatrices();
-
-        // We sort points by the measured depth by the stereo/RGBD sensor.
-        // We create all those MapPoints whose depth < mThDepth.
-        // If there are less than 100 close points we create the 100 closest.
-        vector<pair<float,int> > vDepthIdx;
-        vDepthIdx.reserve(mCurrentFrame.N);
-        for(int i=0; i<mCurrentFrame.N; i++)
-        {
-            float z = mCurrentFrame.mvDepth[i];
-            if(z>0)
-            {
-                vDepthIdx.push_back(make_pair(z,i));
-            }
-        }
-
-        if(!vDepthIdx.empty())
-        {
-            sort(vDepthIdx.begin(),vDepthIdx.end());
-
-            int nPoints = 0;
-            for(size_t j=0; j<vDepthIdx.size();j++)
-            {
-                int i = vDepthIdx[j].second;
-
-                bool bCreateNew = false;
-
-                MapPoint* pMP = mCurrentFrame.mvpMapPoints[i];
-                if(!pMP)
-                    bCreateNew = true;
-                else if(pMP->Observations()<1)
-                {
-                    bCreateNew = true;
-                    mCurrentFrame.mvpMapPoints[i] = static_cast<MapPoint*>(NULL);
-                }
-
-                if(bCreateNew)
-                {
-                    cv::Mat x3D = mCurrentFrame.UnprojectStereo(i);
-                    MapPoint* pNewMP = new MapPoint(x3D,pKF,mpMap);
-                    pNewMP->AddObservation(pKF,i);
-                    pKF->AddMapPoint(pNewMP,i);
-                    pNewMP->ComputeDistinctiveDescriptors();
-                    pNewMP->UpdateNormalAndDepth();
-                    mpMap->AddMapPoint(pNewMP);
-
-                    mCurrentFrame.mvpMapPoints[i]=pNewMP;
-                    nPoints++;
-                }
-                else
-                {
-                    nPoints++;
-                }
-
-                if(vDepthIdx[j].first>mThDepth && nPoints>100)
-                    break;
-            }
-        }
-    }
 
     mpLocalMapper->InsertKeyFrame(pKF);
 
@@ -2726,6 +2688,10 @@ bool Tracking::InitObjectMap()
         newObjMap->mLastLastBbox = ObjFrame[i].mBbox;
         newObjMap->mlatestFrameLines = ObjFrame[i].mLines;
         newObjMap->mvHistoryPos.push_back(ObjFrame[i].mPosMean);
+
+        // // downsample the point cloud
+        // newObjMap->mCloud = Utils::pointcloudDownsample<pcl::PointXYZ>(ObjFrame[i].mCloud, 0.01, 10);
+        // std::cout << "Number of points in the point cloud: " << newObjMap->mCloud->points.size() << std::endl;
         
         //associate ObjectMap and MapPoints
         for(size_t j=0;j<ObjFrame[i].mvpMapPoints.size();j++)

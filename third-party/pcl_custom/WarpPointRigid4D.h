@@ -78,7 +78,9 @@ public:
     Matrix4& trans = this->transform_matrix_;
 
     trans = Matrix4::Zero();
-    trans(3, 3) = 1; // Rotation around the Z-axis
+    trans(3, 3) = 1;
+    trans(2, 2) = 1; // Rotation around the Z-axis
+  
 
     // Copy the rotation and translation components
     trans.template block<4, 1>(0, 3) = Eigen::Matrix<Scalar, 4, 1>(p[0], p[1], p[2], 1.0);

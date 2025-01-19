@@ -74,11 +74,11 @@ System::System(const string &strVocFile, const string &strSettingsFile,const str
     //Create Drawers. These are used by the Viewer
     mpFrameDrawer = new FrameDrawer(mpMap);
     mpMapDrawer = new MapDrawer(mpMap, strSettingsFile);
-
+    
     //Initialize the Tracking thread
     //(it will live in the main thread of execution, the one that called this constructor)
     mpTracker = new Tracking(this, mpVocabulary, mpFrameDrawer, mpMapDrawer,
-                             mpMap, mpKeyFrameDatabase, strSettingsFile, mSensor);
+                             mpMap, mpKeyFrameDatabase, strSettingsFile, mSensor, strDataset);
 
     //Initialize the Local Mapping thread and launch
     mpLocalMapper = new LocalMapping(mpMap, mSensor==MONOCULAR);
@@ -87,6 +87,10 @@ System::System(const string &strVocFile, const string &strSettingsFile,const str
     //Initialize the Loop Closing thread and launch
     mpLoopCloser = new LoopClosing(mpMap, mpKeyFrameDatabase, mpVocabulary, mSensor!=MONOCULAR);
     mptLoopClosing = new thread(&ORB_SLAM2::LoopClosing::Run, mpLoopCloser);
+
+    // Initialize the Semantics Manager thread and launch
+    mpSemanticsManager = new SemanticsManager(mpMap, strDataset, strSettingsFile);
+    mptSemanticsManager = new thread(&SemanticsManager::Run, mpSemanticsManager);
 
     //Initialize the Viewer thread and launch
     if(bUseViewer)
@@ -523,6 +527,12 @@ vector<cv::KeyPoint> System::GetTrackedKeyPointsUn()
     unique_lock<mutex> lock(mMutexState);
     return mTrackedKeyPointsUn;
 }
+
+void System::AddTaskToSemanticsManager(const SemanticsManager::Task &task)
+{
+    mpSemanticsManager->AddTaskToQueue(task);
+}
+
 
 //save objects
 void System::SaveObjects(const string &filename)

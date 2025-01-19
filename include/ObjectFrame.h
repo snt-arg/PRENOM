@@ -11,6 +11,9 @@
 #include "Eigen/Core"
 #include <vector>
 
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
+
 namespace ORB_SLAM2
 {
 class Frame;
@@ -54,6 +57,7 @@ public:
     float mfConfidence;
 
     Bbox mBbox;
+    pcl::PointCloud<pcl::PointXYZ>::Ptr mCloud;
     long int mnFrameId;
     std::vector<int> mvIdxKeyPoints;
     Eigen::MatrixXd mLines;
