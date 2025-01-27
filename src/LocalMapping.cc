@@ -1198,7 +1198,7 @@ void LocalMapping::UpdateObjNeRF()
             continue;
         }
         
-        if(pObj->mKeyFrameHistoryBbox_Temp.size() < 10)
+        if(pObj->mKeyFrameHistoryBbox_Temp.size() < 3)
             continue;
 
 
@@ -1223,8 +1223,9 @@ void LocalMapping::UpdateObjNeRF()
                 nerf::BoundingBox BBox;
 
                 // align to canonical wherever possible
-                if (cls == 63)
-                    pObj->AlignToCanonical();
+                // if (cls == 41)
+                if (cls == 63 || cls == 41 || cls == 73 || cls == 58)
+                    pObj->AlignToCanonical(false, true);
 
                 //NeRF Bbox attribute
                 Tow = pObj->mShape.mTobjw.to_homogeneous_matrix().cast<float>();
@@ -1243,7 +1244,7 @@ void LocalMapping::UpdateObjNeRF()
                 vector<nerf::FrameIdAndBbox> vFrameBbox;
                 GetUpdateBbox(pObj,vFrameBbox);
                 pObj->mKeyFrameHistoryBbox_Temp.clear();
-                mpNeRFManager->UpdateNeRFBbox(idx,vFrameBbox,1);    
+                mpNeRFManager->UpdateNeRFBbox(idx,vFrameBbox,3);    
 
                 cout<<"Create NeRF ... Id: "<<idx<<" Init Angle: "<<angle<<" Bbox Sizes: "<<vFrameBbox.size()<<endl;
                 pObj->twc_xy_last = pObj->twc_xy;
@@ -1263,7 +1264,7 @@ void LocalMapping::UpdateObjNeRF()
                 vector<nerf::FrameIdAndBbox> vFrameBbox;
                 GetUpdateBbox(pObj,vFrameBbox);
                 pObj->mKeyFrameHistoryBbox_Temp.clear();
-                mpNeRFManager->UpdateNeRFBbox(pObj->pNeRFIdx,vFrameBbox,1);
+                mpNeRFManager->UpdateNeRFBbox(pObj->pNeRFIdx,vFrameBbox,3);
 
                 pObj->twc_xy_last = pObj->twc_xy;
             }

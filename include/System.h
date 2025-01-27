@@ -31,7 +31,7 @@
 #include "KeyFrameDatabase.h"
 #include "ORBVocabulary.h"
 #include "Viewer.h"
-#include "SemanticsManager.h"
+#include "ObjectManager.h"
 
 #include "dependencies/Multi-Object-NeRF/Core/include/nerf_manager.h"
 
@@ -44,7 +44,7 @@ class Map;
 class Tracking;
 class LocalMapping;
 class LoopClosing;
-class SemanticsManager;
+class ObjectManager;
 
 class System
 {
@@ -122,9 +122,6 @@ public:
     std::vector<MapPoint*> GetTrackedMapPoints();
     std::vector<cv::KeyPoint> GetTrackedKeyPointsUn();
 
-    // PRENOM
-    void AddTaskToSemanticsManager(const SemanticsManager::Task &task);
-
     //RO-MAP
     void SaveObjects(const string &filename);
     
@@ -159,7 +156,7 @@ private:
     LoopClosing* mpLoopCloser;
 
     // The Semantic Manager. It detects objects and their instances in the scene.
-    SemanticsManager* mpSemanticsManager;
+    ObjectManager* mpObjectManager;
 
     // The viewer draws the map and the current camera pose. It uses Pangolin.
     Viewer* mpViewer;
@@ -172,7 +169,7 @@ private:
     std::thread* mptLocalMapping;
     std::thread* mptLoopClosing;
     std::thread* mptViewer;
-    std::thread* mptSemanticsManager;
+    std::thread* mptObjectManager;
 
     // Reset flag
     std::mutex mMutexReset;

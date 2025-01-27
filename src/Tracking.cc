@@ -168,6 +168,11 @@ void Tracking::SetLoopClosing(LoopClosing *pLoopClosing)
     mpLoopClosing=pLoopClosing;
 }
 
+void Tracking::SetObjectManager(ObjectManager *pObjectManager)
+{
+    mpObjectManager=pObjectManager;
+}
+
 void Tracking::SetViewer(Viewer *pViewer)
 {
     mpViewer=pViewer;
@@ -217,11 +222,9 @@ cv::Mat Tracking::GrabImageStereo(const cv::Mat &imRectLeft, const cv::Mat &imRe
 cv::Mat Tracking::GrabImageRGBD(const cv::Mat &im, const cv::Mat &imD, const cv::Mat &imgInstance, const double &timestamp, const string &strDataset)
 {
     mImGray = im;
-    cv::Mat imDepth = imD;
+    mImgDepth = imD;
     mImColor = im;
     mImgInstance = imgInstance;
-
-
 
     if(mImGray.channels()==3)
     {
@@ -238,10 +241,10 @@ cv::Mat Tracking::GrabImageRGBD(const cv::Mat &im, const cv::Mat &imD, const cv:
             cvtColor(mImGray,mImGray,cv::COLOR_BGRA2GRAY);
     }
 
-    if((fabs(mDepthMapFactor-1.0f)>1e-5) || imDepth.type()!=CV_32F)
-        imDepth.convertTo(imDepth,CV_32F,mDepthMapFactor);
+    if((fabs(mDepthMapFactor-1.0f)>1e-5) || mImgDepth.type()!=CV_32F)
+        mImgDepth.convertTo(mImgDepth,CV_32F,mDepthMapFactor);
 
-    mCurrentFrame = Frame(mImGray,imDepth,timestamp,mpORBextractorLeft,mpORBVocabulary,mK,mDistCoef,mbf,mThDepth);
+    mCurrentFrame = Frame(mImGray,mImgDepth,timestamp,mpORBextractorLeft,mpORBVocabulary,mK,mDistCoef,mbf,mThDepth);
 
     Track();
 
@@ -483,7 +486,7 @@ void Tracking::Track()
             //Initialization
             MonocularInitialization();
 
-        mpFrameDrawer->Update(this);
+        mpFrameDrawer->Update(this, mpObjectManager);
 
         if(mState!=OK)
             return;
@@ -617,7 +620,7 @@ void Tracking::Track()
 
         // Update drawer
         
-        mpFrameDrawer->Update(this);
+        mpFrameDrawer->Update(this, mpObjectManager);
 
         // If tracking were good, check if we insert a keyframe
         if(bOK)
@@ -658,6 +661,21 @@ void Tracking::Track()
             // Check if we need to insert a new keyframe
             if(NeedNewKeyFrame())
                 CreateNewKeyFrame();
+            else
+            {
+                Frame* pCurrentFrame = new Frame(mCurrentFrame);
+                mpObjectManager->AddTaskToQueue(
+                    ObjectManager::Task {
+                        pCurrentFrame,
+                        static_cast<KeyFrame*>(NULL),
+                        mImColor,
+                        mImGray,
+                        mImgInstance,
+                        mImgDepth
+                    }
+                );
+            }
+
 
             // We allow points with high innovation (considererd outliers by the Huber Function)
             // pass to the new keyframe, so that bundle adjustment will finally decide
@@ -1441,741 +1459,18 @@ void Tracking::CreateNewKeyFrame()
     }
 
     Frame* pCurrentFrame = new Frame(mCurrentFrame);
-    mpSystem->AddTaskToSemanticsManager(
-        SemanticsManager::Task {
+    mpObjectManager->AddTaskToQueue(
+        ObjectManager::Task {
             pCurrentFrame,
+            pKF,
+            mImColor,
             mImGray,
-            mImgInstance
+            mImgInstance,
+            mImgDepth
         }
     );
 
-    vector<Bbox> Bboxs;
-    {
-        //offline read object detection----------------------------
-        string sYolopath = mstrDataset + "/" + "bbox/" + to_string(mCurrentFrame.mTimeStamp) + ".txt";
-        
-        ifstream f;
-        f.open(sYolopath);
-        if(!f.is_open())
-        {
-            cout << "yolo_detection file open fail" << endl;
-            exit(0);
-        }
-        
-        //Read txt
-        string line;
-        float num;
-        vector<float> row;
-        while(getline(f,line))
-        {
-            stringstream s(line);
-            while (s >> num)
-            {
-                row.push_back(num);
-            }
-            Bbox newBbox;
-            newBbox.mnClass = row[0];
-
-            //extend box
-            if(mbExtendBox)
-            {
-                newBbox.x = max(0.0f,row[1] - 10);
-                newBbox.y = max(0.0f,row[2] - 10);
-                newBbox.width = min(float(mImgWidth-1) - newBbox.x,row[3] + 20);
-                newBbox.height = min(float(mImgHeight-1) - newBbox.y,row[4] + 20); 
-            }
-            else
-            {
-                newBbox.x = row[1];
-                newBbox.y = row[2];
-                newBbox.width = row[3];
-                newBbox.height = row[4];
-            }
-            newBbox.mfConfidence = row[5];
-            Bboxs.push_back(newBbox);
-            row.clear();
-        }
-        f.close();
-
-    }
-    
-    /*Filter bad Bbox. Including the following situations:
-        Close to image edge
-        Overlap each other
-        Bbox is too large
-        */
-    std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> objectClouds;
-    if(!Bboxs.empty())
-    {
-        vector<int> resIdx(Bboxs.size(),1);
-        vector<Bbox> resBbox;
-        for(size_t i=0;i<Bboxs.size();i++)
-        {
-            if(!resIdx[i])
-                continue;
-
-            Bbox &box = Bboxs[i];
-
-            // There will be errors in target detection, and error categories can be filtered here
-            if(mvIgnoreCategory.find(box.mnClass) != mvIgnoreCategory.end())
-            {
-                resIdx[i] = 0;
-                continue;
-            }
-
-            if(mbCheckBoxEdge)
-            {
-                //Close to image edge
-                if(box.x < 20 || box.x+box.width > mImgWidth-20 || box.y < 20 || box.y+box.height > mImgHeight-20)
-                {  
-                    if(box.area() < mImgWidth * mImgHeight * 0.05)
-                    {
-                        resIdx[i] = 0;
-                        continue;
-                    }
-                    box.mbEdge = true;
-                    if(box.area() < mImgWidth * mImgHeight * 0.1)
-                        box.mbEdgeAndSmall = true;
-                }
-            }
-
-            //Bbox is large than half of img
-            if(box.area() > mImgWidth * mImgHeight * 0.5)
-            {
-                resIdx[i] = 0;
-                continue;
-            }
-            else if(box.area() < mImgWidth * mImgHeight * 0.005)
-            {
-                resIdx[i] = 0;
-                continue;
-            }
-
-            //Overlap each other
-            for(size_t j=0;j<Bboxs.size();j++)
-            {
-                if(i == j || resIdx[j] == 0)
-                    continue;
-                
-                Bbox &box_j = Bboxs[j];
-                float SizeScale = min(box_j.area(),box.area()) / max(box_j.area(),box.area());
-                if(SizeScale > 0.25)
-                {
-                    float overlap = (box & box_j).area();
-                    float IOU = overlap / (box.area() + box_j.area() - overlap);
-                    if(IOU > 0.4)
-                    {
-                        resIdx[i] = 0;
-                        resIdx[j] = 0;
-                        break;
-                    }
-                }
-            } 
-        }
-
-        for(size_t i=0;i<Bboxs.size();i++)
-        {
-            if(resIdx[i])
-            {
-                resBbox.push_back(Bboxs[i]);
-
-                // // get the pointcloud for the object
-                // pcl::PointCloud<pcl::PointXYZ>::Ptr objectCloud(new pcl::PointCloud<pcl::PointXYZ>);
-                // const string sCloudpath = strDataset + "/pointclouds/" + to_string(timestamp) + "/" + to_string(i) + ".ply";
-                // pcl::io::loadPLYFile(sCloudpath, *objectCloud);
-                // objectClouds.push_back(objectCloud);
-
-            }
-        }
-        Bboxs = resBbox;
-    }
-    
-    if(!Bboxs.empty())
-    {
-        mCurrentFrame.mbDetectObject = true;
-        mCurrentFrame.mvBbox = Bboxs;
-        mCurrentFrame.UndistortFrameBbox();
-
-        //Line detect-----------------------------------------------
-        //using distort Img
-        cv::Mat undistortImg = mImGray.clone();
-        if(mDistCoef.at<float>(0)!=0.0)
-        {
-            cv::undistort(mImGray,undistortImg,mK,mDistCoef);
-        }
-        mpLineDetect->detect_raw_lines(undistortImg,mCurrentFrame.mvLines);
-        
-        vector<KeyLine> FilterLines;
-        mpLineDetect->filter_lines(mCurrentFrame.mvLines,FilterLines);
-        mCurrentFrame.mvLines = FilterLines;
-        Eigen::MatrixXd LinesEigen(FilterLines.size(),4);
-        for(size_t i=0;i<FilterLines.size();i++)
-        {
-            LinesEigen(i,0)=FilterLines[i].startPointX;
-            LinesEigen(i,1)=FilterLines[i].startPointY;
-            LinesEigen(i,2)=FilterLines[i].endPointX;
-            LinesEigen(i,3)=FilterLines[i].endPointY;
-        }
-        mCurrentFrame.mLinesEigen = LinesEigen;
-        
-        //creat object_Frame---------------------------------------------------
-        for(size_t i=0;i<mCurrentFrame.mvBboxUn.size();i++)
-        {
-            Object_Frame object_frame;
-            object_frame.mnFrameId = mCurrentFrame.mnId;
-            object_frame.mBbox = mCurrentFrame.mvBboxUn[i];
-            object_frame.mnClass = object_frame.mBbox.mnClass;
-            object_frame.mfConfidence = object_frame.mBbox.mfConfidence;
-            mCurrentFrame.mvObjectFrame.push_back(object_frame);
-        }
-    }
-    
-    //Assign feature points and lines to detected objects
-    mCurrentFrame.AssignFeaturesToBbox(mImgInstance);
-    mCurrentFrame.AssignLinesToBbox();
-
-    auto startTime = std::chrono::system_clock::now();
-
-
-    //object-nerf-SLAM-----------------The main functions are as follows--------------------------------------
-    bool FilterOutlier = true;
-    mvPointsToDrawer.clear();
-
-    if(mCurrentFrame.mbDetectObject)
-    {
-        vector<Object_Frame>& Objects = mCurrentFrame.mvObjectFrame;
-        //1. After optimize pose, associate MapPoints with objects using KeyPoints;
-        for(Object_Frame& obj : Objects)
-        {   
-            obj.mSumPointsPos = cv::Mat::zeros(3,1,CV_32F);
-            
-            for(const int& i : obj.mvIdxKeyPoints)
-            {
-                if(mCurrentFrame.mvpMapPoints[i])
-                    if(FilterOutlier && mCurrentFrame.mvbOutlier[i])
-                    {
-                        continue;
-                    }
-                    else
-                    {
-                        obj.mvpMapPoints.push_back(mCurrentFrame.mvpMapPoints[i]);
-                        cv::Mat MPworldPos = mCurrentFrame.mvpMapPoints[i]->GetWorldPos();
-                        obj.mSumPointsPos += MPworldPos;
-
-                        // to FrameDraw
-                        cv::Point point = mCurrentFrame.mvKeysUn[i].pt;
-                        mvPointsToDrawer.push_back(point);
-                        
-                    }
-            }
-            
-            if(obj.mvpMapPoints.size() < mnBoxMapPoints)
-            {
-                obj.mbBad = true;
-                continue;
-            }
-
-            //on edge 
-            if(obj.mBbox.mbEdge)
-                if(obj.mvpMapPoints.size() < mnBoxMapPoints * 2)
-                {
-                    obj.mbBad = true;
-                    continue;
-                }
-
-            //2. filter mappoints using Boxplot
-            if(!obj.mvpMapPoints.empty())
-            {
-                obj.FilterMPByBoxPlot(mCurrentFrame.mTcw);
-            }
-
-            //3. Calculate object  information
-            //Calculate the mean and standard deviation
-            obj.CalculateMeanAndStandard();
-
-            //Construct Bbox by reprojecting MapPoints, for data association
-            obj.ConstructBboxByMapPoints(mCurrentFrame);
-
-        }
-
-        //deal ObjectMap
-        unique_lock<mutex> lock(mpMap->mMutexObjects);
-
-        mvNewOrChangedObj.clear();
-        //4. first init object map
-        if(!mbInitObjectMap && mCurrentFrame.mnId >  mInitialFrame.mnId + 3)
-        {
-            if(InitObjectMap())
-                mbInitObjectMap = true;
-        } 
-        else if (mbInitObjectMap)
-        {
-            //5. data association
-            //Please refer to our previous work for theoretical.
-
-            //Two strategies  1. Consecutive association    2. Non-consecutive association
-
-            //update mLastFrame.mvObjectMap(backend merge object)
-            for(size_t i=0;i<mLastFrame.mvObjectMap.size();i++)
-            {
-                if(mLastFrame.mvObjectMap[i])
-                {
-                    Object_Map* pObj = mLastFrame.mvObjectMap[i];
-
-                    Object_Map* pReObj = pObj->GetReplaced();
-                        if(pReObj)
-                            mLastFrame.mvObjectMap[i] = pReObj;
-                }
-            }
-            
-            //Separate two types of Object_Map
-            set<Object_Map*> sObjsIF;
-            set<Object_Map*> sObjsNIF;
-        
-            for(Object_Map* pObj : mLastFrame.mvObjectMap)
-            {
-                if(pObj && !pObj->IsBad())
-                    sObjsIF.insert(pObj);
-            }
-            for(Object_Map* pObj : mpMap->GetAllObjectMap())
-            {   
-                if(pObj->IsBad())
-                    continue;
-                if(sObjsIF.find(pObj) != sObjsIF.end())
-                    continue;
-                else
-                {   
-                    //Successful inter frame matching for at least three consecutive frames
-                    if(pObj->mnObs < mnMinimumContinueObs)
-                    {
-                        pObj->SetBad("No inter-frame matching");
-                        continue;
-                    }    
-
-                    sObjsNIF.insert(pObj);
-                    //for Non interframe Data Association
-                    pObj->ConstructBboxByMapPoints(mCurrentFrame);
-                }
-                    
-            }
-            
-            int nObjFrame = mCurrentFrame.mvObjectFrame.size();
-            mCurrentFrame.mvObjectMap = vector<Object_Map*>(nObjFrame,static_cast<Object_Map*>(NULL));
-
-            auto startAssTime = std::chrono::system_clock::now();
-
-            /* cout<<"sObjsIF.size(): "<<sObjsIF.size()<<endl;
-            cout<<"sObjsNIF.size(): "<<sObjsNIF.size()<<endl;
-            cout<<"Objects.size(): "<<Objects.size()<<endl; */
-            //cout<<"------------------------------------------"<<endl;
-            
-            for(size_t i=0;i<Objects.size();i++)
-            {
-                Object_Frame& obj = Objects[i];
-                if(obj.mbBad)
-                    continue;
-
-                bool bIFass = false;
-                bool bNIFass = false;
-
-                Object_Map* AssOBJ = static_cast<Object_Map*>(NULL);
-                vector<Object_Map*> possibleOBJ;
-
-                //1. Consecutive association
-
-                Object_Map* IoUassOBJ = static_cast<Object_Map*>(NULL);
-                float fMaxIoU = 0;
-
-                Object_Map* MaxMPassOBJ = static_cast<Object_Map*>(NULL);
-                int nMaxMPs = 0;
-                set<MapPoint*> ObjMPs(obj.mvpMapPoints.begin(),obj.mvpMapPoints.end());
-                
-                for(Object_Map* pObjMap : sObjsIF)
-                {
-                    //Inter frame IOU data association
-                    if(pObjMap->IsBad())
-                        continue;
-                    if(pObjMap->mnClass != obj.mnClass)
-                        continue;
-                    if(pObjMap->mnlatestObsFrameId == mCurrentFrame.mnId)
-                        continue;
-
-                    cv::Rect predictBbox;
-                    //CurrentFrame Bbox prediction
-                    if(pObjMap->mLastBbox != pObjMap->mLastLastBbox)
-                    {
-                        float top_left_x = pObjMap->mLastBbox.x * 2 - pObjMap->mLastLastBbox.x;
-                        float top_left_y = pObjMap->mLastBbox.y * 2 - pObjMap->mLastLastBbox.y;
-                
-                        if(top_left_x < mCurrentFrame.mnMinX)
-                            top_left_x = mCurrentFrame.mnMinX;
-                        if(top_left_y < mCurrentFrame.mnMinY)
-                            top_left_y = mCurrentFrame.mnMinY;  
-
-                        float width = pObjMap->mLastBbox.width * 2 - pObjMap->mLastLastBbox.width;
-                        float height = pObjMap->mLastBbox.height * 2 - pObjMap->mLastLastBbox.height;
-
-                        if(width > mCurrentFrame.mnMaxX - top_left_x)
-                            width = mCurrentFrame.mnMaxX - top_left_x;
-                        
-                        if(height > mCurrentFrame.mnMaxY - top_left_y)
-                            height = mCurrentFrame.mnMaxY - top_left_y;
-                        
-                        predictBbox = cv::Rect(top_left_x,top_left_y,width,height);
-
-                    }
-                    else
-                    {
-                        predictBbox = pObjMap->mLastBbox;
-                    }
-
-                    float IoUarea = (predictBbox & obj.mBbox).area(); 
-                    IoUarea = IoUarea / float((predictBbox.area() + obj.mBbox.area() - IoUarea));
-                    if(IoUarea > 0.5 && IoUarea > fMaxIoU)
-                    {
-                        fMaxIoU = IoUarea;
-                        IoUassOBJ = pObjMap;  
-                    }
-                    
-                    //Inter frame MapPoints data association
-                    int nShareMP = 0;
-                    //Data association is not performed when there are too few MapPoints
-                    if(ObjMPs.size() > 6)
-                    {
-                        for(MapPoint* pMP : pObjMap->mvpMapPoints)
-                        {
-                            if(ObjMPs.find(pMP) != ObjMPs.end())
-                            ++nShareMP;
-                        }
-                    
-                        if(nShareMP > ObjMPs.size() / 3 && nShareMP> nMaxMPs)
-                        {
-                            nMaxMPs = nShareMP;
-                            MaxMPassOBJ = pObjMap;
-                        }
-                    }
-
-                }
-                
-                //have association
-                if(fMaxIoU > 0.7)
-                {
-                    if(IoUassOBJ->whetherAssociation(obj,mCurrentFrame))
-                    {
-                        AssOBJ = IoUassOBJ;
-                        bIFass = true;
-                    }
-                    else
-                        bIFass = false;
-                }
-                else if(fMaxIoU > 0 && nMaxMPs > 0)
-                {   
-                    //same association
-                    if(IoUassOBJ == MaxMPassOBJ)
-                    {
-                        if(IoUassOBJ->whetherAssociation(obj,mCurrentFrame))
-                        {
-                            AssOBJ = IoUassOBJ;
-                            bIFass = true;
-                        }
-                        else
-                            bIFass = false;
-                    }
-                    else
-                    {
-                        // have association but not same
-                        bIFass = false;
-                        obj.mbBad = true;
-                    }
-                }
-                else if(fMaxIoU == 0 && nMaxMPs==0)
-                {
-                    bIFass = false;
-                }
-                else
-                {
-
-                    if(fMaxIoU > 0)
-                    {
-                        if(IoUassOBJ->whetherAssociation(obj,mCurrentFrame))
-                        {
-                            AssOBJ = IoUassOBJ;
-                            bIFass = true;
-                        }
-                        else
-                            bIFass = false;
-                    }
-                    else
-                    {
-                        if(MaxMPassOBJ->whetherAssociation(obj,mCurrentFrame))
-                        {
-                            AssOBJ = MaxMPassOBJ;
-                            bIFass = true;
-                        }
-                        else
-                            bIFass = false;
-                    }
-                }
-                
-                // Non-consecutive Association
-                for(Object_Map* pObjMap : sObjsNIF)
-                {   
-                    //cout<<"pObjMap IsBad: "<<pObjMap->IsBad()<<endl;
-                    if(pObjMap->IsBad() || pObjMap->mnClass != obj.mnClass)
-                        continue;
-
-                    if(pObjMap->mnlatestObsFrameId == mCurrentFrame.mnId)
-                        continue;
-
-                    //Data association is not performed when there are too few MapPoints
-                    int nShareMP = 0;
-                    if(ObjMPs.size() > 6)
-                    {
-                        for(MapPoint* pMP : pObjMap->mvpMapPoints)
-                        {
-                            if(ObjMPs.find(pMP) != ObjMPs.end())
-                                ++nShareMP;
-                        }
-                    
-                        if(nShareMP > ObjMPs.size() / 3)
-                        {
-                            possibleOBJ.push_back(pObjMap);
-                            continue;
-                        }
-                    }
-
-                    int nobs = pObjMap->mnObs;
-                    //t-test 
-                    float tx,ty,tz;
-
-                    tx = abs(pObjMap->mHistoryPosMean.at<float>(0) - obj.mPosMean.at<float>(0));
-                    tx = sqrt(nobs) * tx / pObjMap->mfPosStandardX;
-                    ty = abs(pObjMap->mHistoryPosMean.at<float>(1) - obj.mPosMean.at<float>(1));
-                    ty = sqrt(nobs) * ty / pObjMap->mfPosStandardY;
-                    tz = abs(pObjMap->mHistoryPosMean.at<float>(2) - obj.mPosMean.at<float>(2));
-                    tz = sqrt(nobs) * tz / pObjMap->mfPosStandardZ;
-                    // Degrees of freedom.
-                    int deg = min(100,nobs-1);
-
-                    if(pObjMap->mnObs > 6)
-                    {
-                        //0.05
-                        float th = tTest[deg][2];
-                        if(tx<th && ty<th && tz<th)
-                        {
-                            possibleOBJ.push_back(pObjMap);
-                            continue;
-                        }
-
-                    }
-
-                    //check IoU, reproject associate
-                    float IoUarea = (pObjMap->mMPsProjectRect & obj.mBbox).area();
-                    IoUarea = IoUarea / float((pObjMap->mMPsProjectRect.area() + obj.mBbox.area() - IoUarea));
-                    if(IoUarea > 0.3)
-                    {   
-                        //0.001
-                        float th = tTest[deg][4];
-                        if(tx<th && ty<th && tz<th)
-                        {
-                            possibleOBJ.push_back(pObjMap);
-                            continue;
-                        }
-                        else if( (tx+ty+tz) / 3 < 2 * th)
-                        {
-                            possibleOBJ.push_back(pObjMap);
-                            continue;
-                        }
-                    }
-                }
-
-                //try possible object
-                if(!bIFass && !possibleOBJ.empty())
-                {
-                    sort(possibleOBJ.begin(),possibleOBJ.end(),[](const Object_Map* left,const Object_Map* right){return left->mnObs < right->mnObs;});
-
-                    for(int i=possibleOBJ.size()-1;i>=0;i--)
-                    {
-                        if(possibleOBJ[i]->whetherAssociation(obj,mCurrentFrame))
-                        {
-                            AssOBJ = possibleOBJ[i];
-                            bNIFass = true;
-                            break;
-                        }
-                    }
-                    if(bNIFass)
-                    {
-                        for(int i=possibleOBJ.size()-1;i>=0;i--)
-                        {
-                            if(possibleOBJ[i] == AssOBJ)
-                            {
-                                continue;
-                            }
-                            //judge in the backend
-                            AssOBJ->mPossibleSameObj[possibleOBJ[i]]++;
-                        }
-                    }
-                }
-                else if(!possibleOBJ.empty())
-                {
-                    for(int i=possibleOBJ.size()-1;i>=0;i--)
-                        {
-                            if(possibleOBJ[i] == AssOBJ)
-                            {
-                                continue;
-                            }
-                            //judge in the backend
-                            AssOBJ->mPossibleSameObj[possibleOBJ[i]]++;
-                        }
-                }
-
-                //update 2D information
-                if(bIFass || bNIFass)
-                {
-                    //cout<<"bIFass: "<<bIFass<<" bNIFass: "<<bNIFass<<endl;
-                    AssOBJ->mnlatestObsFrameId = mCurrentFrame.mnId;
-                    AssOBJ->mnObs++;
-                    if(bIFass)
-                        AssOBJ->mLastLastBbox = AssOBJ->mLastBbox;
-                    else
-                        AssOBJ->mLastLastBbox = obj.mBbox;
-                    AssOBJ->mLastBbox = obj.mBbox;
-                    AssOBJ->mlatestFrameLines = obj.mLines;
-                    AssOBJ->mvHistoryPos.push_back(obj.mPosMean);
-                    
-                    bool checkMPs = false;
-                    SE3Quat Tobjw;
-                    float Maxdist_x = 0;
-                    float Maxdist_y = 0;
-                    float Maxdist_z = 0;
-                    if(AssOBJ->mvpMapPoints.size() > 20)
-                    {   
-                        checkMPs = true;
-                        if(AssOBJ->mbFirstInit)
-                        {
-                            Tobjw = AssOBJ->mTobjw;
-                            Maxdist_x = AssOBJ->mfLength;
-                            Maxdist_y = AssOBJ->mfLength;
-                            Maxdist_z = AssOBJ->mfLength;
-                        }
-                        else
-                        {   //more accurate
-                            Tobjw = AssOBJ->mShape.mTobjw;
-                            Maxdist_x = AssOBJ->mShape.a1;
-                            Maxdist_y = AssOBJ->mShape.a2;
-                            Maxdist_z = AssOBJ->mShape.a3;
-                        }
-                    }
-
-                    //associate ObjectMap and MapPoints
-                    for(size_t j=0;j<obj.mvpMapPoints.size();j++)
-                    {   
-                        MapPoint* pMP = obj.mvpMapPoints[j];
-                        if(pMP->isBad())
-                            continue;
-
-                        if(checkMPs)
-                        {
-                            // check position
-                            Eigen::Vector3d ObjPos = Tobjw * Converter::toVector3d(pMP->GetWorldPos());
-                            /* float dist = sqrt(ObjPos(0) * ObjPos(0) + ObjPos(1) * ObjPos(1) + ObjPos(2) * ObjPos(2));
-                            if(dist > 1.1 * Maxdist)
-                                continue; */
-                            if(abs(ObjPos(0)) > AddMPsDistMultiple * Maxdist_x || abs(ObjPos(1)) > AddMPsDistMultiple * Maxdist_y || abs(ObjPos(2)) > AddMPsDistMultiple * Maxdist_z)
-                                continue;
-
-                        }
-                        //new MapPoint
-                        AssOBJ->AddNewMapPoints(pMP);
-                    }
-
-                    AssOBJ->UpdateMapPoints();
-                    mCurrentFrame.mvObjectMap[i] = AssOBJ;
-                    //cout <<"FrameId: "<<mCurrentFrame.mnId <<" ObjId: "<< AssOBJ->mnId<<endl;
-                    mvNewOrChangedObj.push_back(AssOBJ);
-                }
-                else
-                {
-                    //cout<<"creat new ObjectMap: "<<obj.mnClass<<endl;
-                    //creat new ObjectMap
-                    Object_Map* newObjMap = new Object_Map(mpMap);
-                    newObjMap->mnCreatFrameId = mCurrentFrame.mnId;
-                    newObjMap->mnlatestObsFrameId = mCurrentFrame.mnId;
-                    newObjMap->mnObs++;
-                    newObjMap->mnClass = obj.mnClass;
-                    newObjMap->mLastBbox = obj.mBbox;
-                    newObjMap->mLastLastBbox = obj.mBbox;
-                    newObjMap->mlatestFrameLines = obj.mLines;
-                    newObjMap->mvHistoryPos.push_back(obj.mPosMean);
-
-                    //associate ObjectMap and MapPoints
-                    for(size_t j=0;j<obj.mvpMapPoints.size();j++)
-                    {   
-                        MapPoint* pMP = obj.mvpMapPoints[j];
-                        if(pMP->isBad())
-                            continue;
-                        //new MapPoint
-                        newObjMap->AddNewMapPoints(pMP);
-                    }
-                    
-                    // Calculate the mean and standard deviation
-                    newObjMap->UpdateMapPoints();
-
-                    mCurrentFrame.mvObjectMap[i] = newObjMap;
-                    mvNewOrChangedObj.push_back(newObjMap);
-                    mpMap->AddObjectMap(newObjMap);
-                    
-                }
-            }
-            auto endAssTime = std::chrono::system_clock::now();
-            //cout<<"ObjectMapTime: "<<std::chrono::duration_cast<chrono::microseconds>(endAssTime - startAssTime).count()<<endl;
-            Asstime.push_back(std::chrono::duration_cast<chrono::microseconds>(endAssTime - startAssTime).count());
-            
-        }
-    
-        //End of association, update object_map
-        auto startObjectMapTime = std::chrono::system_clock::now();
-        //Has been initialized and has a new association
-        if(mbInitObjectMap && !mvNewOrChangedObj.empty())
-        {   
-            
-            //6. update ObjectMap
-            for(size_t i=0;i < mvNewOrChangedObj.size();i++)
-            {
-                Object_Map* pObj = mvNewOrChangedObj[i];
-                //step1. Filter outlier
-                pObj->FilterOutlier(mCurrentFrame);
-                pObj->EIFFilterOutlier();
-                
-                //step2. Calculate (pos) MeanAndStandard
-                pObj->CalculateMeanAndStandard();
-
-                pObj->CalculatePosMeanAndStandard();
-                
-                //step3. Calculate Translation and Rotation
-                pObj->CalculateObjectPose(mCurrentFrame);
-                
-                //step4. update covisibility relationship
-                pObj->UpdateCovRelation(mvNewOrChangedObj);
-
-                //step5. History BBox
-                pObj->InsertHistoryBboxAndTwc(mCurrentFrame);
-
-            }
-        }
-        auto endObjectTime = std::chrono::system_clock::now();
-        //cout<<"ObjectMapTime: "<<std::chrono::duration_cast<chrono::milliseconds>(endObjectTime - startObjectMapTime).count()<<endl;
-        //cout<<"ObjectTime: "<<std::chrono::duration_cast<chrono::milliseconds>(endObjectTime - startTime).count()<<endl;
-        //cout <<"--------------------------------------------------------" <<endl;
-    }
-
-
     mpLocalMapper->InsertKeyFrame(pKF);
-
-    //object-nerf-slam
-    if(!mvNewOrChangedObj.empty())
-        mpLocalMapper->InsertKeyFrameAndImg(pKF,mImColor,mImgInstance);
-
     mpLocalMapper->SetNotStop(false);
 
     mnLastKeyFrameId = mCurrentFrame.mnId;
@@ -2659,68 +1954,5 @@ void Tracking::LoadGroundtruthPose(const string &strDataset)
         f.close();
 }
 
-bool Tracking::InitObjectMap()
-{
-
-    int nObjFrame = mCurrentFrame.mvObjectFrame.size();
-    mCurrentFrame.mvObjectMap = vector<Object_Map*>(nObjFrame,static_cast<Object_Map*>(NULL));
-
-    vector<Object_Frame>& ObjFrame = mCurrentFrame.mvObjectFrame;
-
-    for(int i=0;i<nObjFrame;i++)
-    {
-        if(ObjFrame[i].mbBad)
-            continue;
-        //The mappoints required for initialization are doubled
-        if(ObjFrame[i].mvpMapPoints.size() < 10)
-        {
-            ObjFrame[i].mbBad = true;
-            continue;
-        }
-        
-        //creat new ObjectMap
-        Object_Map* newObjMap = new Object_Map(mpMap);
-        newObjMap->mnCreatFrameId = mCurrentFrame.mnId;
-        newObjMap->mnlatestObsFrameId = mCurrentFrame.mnId;
-        newObjMap->mnObs++;
-        newObjMap->mnClass = ObjFrame[i].mnClass;
-        newObjMap->mLastBbox = ObjFrame[i].mBbox;
-        newObjMap->mLastLastBbox = ObjFrame[i].mBbox;
-        newObjMap->mlatestFrameLines = ObjFrame[i].mLines;
-        newObjMap->mvHistoryPos.push_back(ObjFrame[i].mPosMean);
-
-        // // downsample the point cloud
-        // newObjMap->mCloud = Utils::pointcloudDownsample<pcl::PointXYZ>(ObjFrame[i].mCloud, 0.01, 10);
-        // std::cout << "Number of points in the point cloud: " << newObjMap->mCloud->points.size() << std::endl;
-        
-        //associate ObjectMap and MapPoints
-        for(size_t j=0;j<ObjFrame[i].mvpMapPoints.size();j++)
-        {
-            if(ObjFrame[i].mvpMapPoints[j]->isBad())
-                continue;
-            MapPoint* pMP = ObjFrame[i].mvpMapPoints[j];
-
-            //new MapPoint
-            newObjMap->AddNewMapPoints(pMP);
-        }
-
-        // Calculate the mean and standard deviation
-        newObjMap->UpdateMapPoints();
-
-        mCurrentFrame.mvObjectMap[i] = newObjMap;
-        mvNewOrChangedObj.push_back(newObjMap);
-        mpMap->AddObjectMap(newObjMap);
-        
-    }
-
-    if(!mvNewOrChangedObj.empty())
-    {
-        cout<< "Init Object Map successful"  <<endl;
-        return true;
-    }  
-    else 
-        return false;
-
-}
 
 } //namespace ORB_SLAM

@@ -4,8 +4,8 @@
 * Created: 05/18/2022
 * Author: Xiao Han
 */
-#ifndef SEMANTICSMANAGER_H
-#define SEMANTICSMANAGER_H
+#ifndef OBJECTMANAGER_H
+#define OBJECTMANAGER_H
 
 #include <pcl/common/common.h>
 #include <pcl/io/ply_io.h>
@@ -23,10 +23,14 @@
 #include "Eigen/Core"
 #include "Eigen/Eigenvalues"
 #include "ObjectFrame.h"
+#include "Converter.h"
+#include "LocalMapping.h"
 #include "dependencies/g2o/g2o/types/se3quat.h"
+#include "Frame.h"
 #include <vector>
 #include <map>
 #include <mutex>
+
 
 using namespace g2o;
 using namespace std;
@@ -34,28 +38,37 @@ using namespace std;
 namespace ORB_SLAM2
 {
 class Frame;
+class LocalMapping;
 class MapPoint;
 class Map;
 class Object_Map;
+class KeyFrame;
 
-class SemanticsManager
+class ObjectManager
 {
 public:
 
     struct Task
     {
         Frame* frame;
+        KeyFrame* keyframe;
+        cv::Mat imgColor;
         cv::Mat imgGray;
         cv::Mat imgInstance;
+        cv::Mat imgDepth;
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud;
     };
 
 
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
-    SemanticsManager(Map* pMap, const string &strDataset, const string &strSettingPath);
+    ObjectManager(Map* pMap, const string &strDataset, const string &strSettingPath);
     void AddTaskToQueue(Task task);
     void Run();
+    void SetLocalMapper(LocalMapping* pLocalMapper);
+
+    // points to draw
+    vector<cv::Point> mvPointsToDrawer;    
 
     
 protected:
@@ -63,8 +76,8 @@ protected:
     // Map
     Map* mpMap;
 
-    //dataset path
-    string mstrDataset;
+    // Local Mapper
+    LocalMapping* mpLocalMapper;
 
     // frame queue
     std::queue<Task> mTaskQueue;
@@ -74,11 +87,14 @@ protected:
     int mnImgHeight;
     cv::Mat mDistCoef;
     cv::Mat mK;
-
-    bool mbInitObjectMap;
+    Eigen::Matrix3f mEigenInvK;
+    bool mbInitObjectMap = false;
     vector<Object_Map*> mvNewOrChangedObj;
-    //t test 
     float tTest[101][4] = {0};
+
+    // frames - can be keyframes or otherwise
+    Frame* mpLastFrame;
+    
 
     //parameter
     bool mbExtendBox;
@@ -87,6 +103,7 @@ protected:
     int mnBoxMapPoints;
     int mnMinimumContinueObs;
     float AddMPsDistMultiple;
+    int mnFramesPassed = 0;
 
     // dataset string
     string mStrDataset;
@@ -98,6 +115,18 @@ protected:
     std::mutex mMutex;
     std::mutex mMutexMapPoints;
     std::mutex mMutexNewMapPoints;
+
+
+    // methods
+    // separates the point cloud into instances - also filters out points that are too far away
+    void ClassPointcloudsFromDepth(const cv::Mat& depth, 
+                                   const cv::Mat& imgInstance, 
+                                   const vector<Object_Frame>& objectFrames, 
+                                   vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vClassClouds,
+                                   const float maxDepth = 3.5f);
+    
+    // Initialize the objects for the first time
+    bool InitObjectMap(Frame* pFrame);
 
 };
 

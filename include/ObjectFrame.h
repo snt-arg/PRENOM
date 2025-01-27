@@ -57,10 +57,12 @@ public:
     float mfConfidence;
 
     Bbox mBbox;
-    pcl::PointCloud<pcl::PointXYZ>::Ptr mCloud;
     long int mnFrameId;
     std::vector<int> mvIdxKeyPoints;
     Eigen::MatrixXd mLines;
+
+    // initialize cloud to empty
+    pcl::PointCloud<pcl::PointXYZ>::Ptr mCloud = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>);
 
     std::vector<MapPoint*> mvpMapPoints;
     cv::Mat mSumPointsPos;

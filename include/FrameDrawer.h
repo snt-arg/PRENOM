@@ -28,6 +28,7 @@ namespace ORB_SLAM2
 
 class Tracking;
 class Viewer;
+class ObjectManager;
 
 class FrameDrawer
 {
@@ -35,7 +36,7 @@ public:
     FrameDrawer(Map* pMap);
 
     // Update info from the last processed frame.
-    void Update(Tracking *pTracker);
+    void Update(Tracking *pTracker, ObjectManager* pObjectManager);
 
     // Draw last processed frame.
     cv::Mat DrawFrame();

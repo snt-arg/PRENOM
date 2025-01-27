@@ -404,14 +404,19 @@ void MapDrawer::DrawObject(bool drawPoints, bool drawMesh, bool drawBbox,bool dr
             glBegin(GL_POINTS);
             glColor3f(color[0]/255.0, color[1]/255.0, color[2]/255.0);
 
-            vector<MapPoint*> pMPs = AllObjs[i]->mvpMapPoints;
-            for(size_t i=0, iend=pMPs.size(); i<iend;i++)
-            {
-                //if(pMPs[i]->isBad())
-                //    continue;
-                cv::Mat pos = pMPs[i]->GetWorldPos();
-                glVertex3f(pos.at<float>(0),pos.at<float>(1),pos.at<float>(2));
-            }
+            // vector<MapPoint*> pMPs = AllObjs[i]->mvpMapPoints;
+            // for(size_t i=0, iend=pMPs.size(); i<iend;i++)
+            // {
+            //     //if(pMPs[i]->isBad())
+            //     //    continue;
+            //     cv::Mat pos = pMPs[i]->GetWorldPos();
+            //     glVertex3f(pos.at<float>(0),pos.at<float>(1),pos.at<float>(2));
+            // }
+
+            // draw point cloud
+            const vector<Eigen::Vector3f> cloudPoints = AllObjs[i]->GetCloudPoints();
+            for (const auto& point : cloudPoints)
+                glVertex3f(point[0], point[1], point[2]);
             glEnd();
         }
 

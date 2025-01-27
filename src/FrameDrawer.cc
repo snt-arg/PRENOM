@@ -159,7 +159,7 @@ void FrameDrawer::DrawTextInfo(cv::Mat &im, int nState, cv::Mat &imText)
 
 }
 
-void FrameDrawer::Update(Tracking *pTracker)
+void FrameDrawer::Update(Tracking *pTracker, ObjectManager* pObjectManager)
 {
     unique_lock<mutex> lock(mMutex);
 
@@ -176,7 +176,7 @@ void FrameDrawer::Update(Tracking *pTracker)
     mvObjLines.clear();
     Eigen::MatrixXd lines;
     //Lines and KeyPoints
-    mvPoints = pTracker->mvPointsToDrawer;
+    mvPoints = pObjectManager->mvPointsToDrawer;
     for(const Object_Frame& obj: pTracker->mCurrentFrame.mvObjectFrame)
     {
         if(obj.mbBad)

@@ -12,6 +12,7 @@
 #include <pcl/point_types.h>
 #include <pcl/filters/statistical_outlier_removal.h>
 #include <pcl/kdtree/kdtree_flann.h>
+#include <pcl/filters/random_sample.h>
 
 #include <pcl/registration/icp.h>
 #include <pcl/registration/icp_nl.h>
@@ -22,6 +23,7 @@
 #include "Eigen/Core"
 #include "Eigen/Eigenvalues"
 #include "ObjectFrame.h"
+#include "Utils.h"
 #include "dependencies/g2o/g2o/types/se3quat.h"
 #include <vector>
 #include <map>
@@ -54,7 +56,7 @@ public:
 
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
-    Object_Map(Map* pMap);
+    Object_Map(Map* pMap, float tTest[][4]);
 
     //isbad
     bool IsBad();
@@ -87,7 +89,7 @@ public:
     float CalculateYawError(const cv::Mat& SampleRwobj,const cv::Mat& twobj, const Frame& CurrentFrame,vector<vector<int>>& AssLines);
 
     //Calculate Object size and Shape
-    void CalculateObjectShape();
+    void CalculateObjectShape(const bool removeOutliers = false);
     
     //updata covisibility relationship
     void UpdateCovRelation(const vector<Object_Map*>& CovObjs);
@@ -102,21 +104,24 @@ public:
     void MergeObject(Object_Map* pObj,const double CurKeyFrameStamp);
 
     // Align objects to their canonical pose based on the class
-    void AlignToCanonical();
+    void AlignToCanonical(const bool loadDensity = false, const bool refineICP = true);
     int ComputeOccupancyScoreOctree(const pcl::octree::OctreePointCloud<pcl::PointXYZ>& octree, 
                                             const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) const;
     int ComputeDensityScore(const float* densityGrid, const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) const;
-    void RemoveOutliers(pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) const;
+    pair<Eigen::Vector3d, Eigen::Vector3d> GetSizeTransFromTransform(const vector<Eigen::Vector3d>& points, const Eigen::Matrix4d& T);
+    void EIFFilterOutlierCloud();
 
     //Get Replace Object pointer
     Object_Map* GetReplaced();
 
     //Get Overlap Objects by MapPoints
-    set<Object_Map*> GetShareObject();
+    vector<Eigen::Vector3f> GetCloudPoints() const;
 
-    //
     void InsertHistoryBboxAndTwc(const Frame& CurrentFrame);
 
+    void AddToCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud, const Eigen::Matrix4f& Twc);
+    void AddCloudCentroidToHistory(const Eigen::Vector3d& centroid);
+    bool CentroidTTest(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud, const bool addToHistory = false);
 
     static long unsigned int nNextId;
 
@@ -158,7 +163,6 @@ public:
 
     std::vector<MapPoint*> mvpMapPoints;
     std::vector<MapPoint*> mvpNewAddMapPoints;
-    pcl::PointCloud<pcl::PointXYZ>::Ptr mCloud;
     cv::Mat mSumPointsPos;
     //position mean and standard deviation
     vector<cv::Mat> mvHistoryPos;
@@ -185,8 +189,41 @@ public:
     //The t stored in this T has not undergone rotation transformation
     SE3Quat mTobjw;
 
+    // t-test statistics
+    float mTTest[101][4];
+
     Map* mpMap;
     
+    // dense object cloud
+    pcl::PointCloud<pcl::PointXYZ>::Ptr mCloud;
+    Eigen::Vector3d mCloudCentroidHistoryMean = Eigen::Vector3d::Zero();
+    Eigen::Vector3d mCloudCentroidHistoryStdDev = Eigen::Vector3d::Zero();
+    vector<Eigen::Vector3d> mvCloudCentroidHistory;
+    vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> mvCloudClustersToCheck;
+
+    // frozen cloud - aligned to canonical pose
+    pcl::PointCloud<pcl::PointXYZ>::Ptr mFrozenCloud = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>);
+    Eigen::Matrix4d mFrozenTow;
+
+    // hyperparameters for objects
+    // cloud size
+    size_t mnMinCloudPoints = 100;
+    size_t mnMaxCloudPoints = 1500;
+    
+    // downsampling
+    float mnVoxelLeafSize = 0.01;
+    int mnMinPointsPerVoxel = 5;
+    
+    // outlier removal
+    int mnNeighborPoints = 25;
+    float mnStdDevThresh = 1.0;
+
+    // euclidean clustering
+    float mnClusterTolerance = 0.10;
+
+    // centroid history
+    size_t mnMinHistorySize = 50;
+
     //NeRF
     bool haveNeRF = false;
     size_t pNeRFIdx;
@@ -199,9 +236,9 @@ public:
 protected:
     //mutex
     std::mutex mMutex;
+    mutable std::mutex mMutexCloud;
     std::mutex mMutexMapPoints;
     std::mutex mMutexNewMapPoints;
-
 };
 
 }

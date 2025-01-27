@@ -40,7 +40,7 @@ class Map;
 class LocalMapping;
 class LoopClosing;
 class System;
-class SemanticsManager;
+class ObjectManager;
 
 class Tracking
 {  
@@ -56,6 +56,7 @@ public:
 
     void SetLocalMapper(LocalMapping* pLocalMapper);
     void SetLoopClosing(LoopClosing* pLoopClosing);
+    void SetObjectManager(ObjectManager* pObjectManager);
     void SetViewer(Viewer* pViewer);
 
     // Load new settings
@@ -70,8 +71,6 @@ public:
 
     //RO-MAP
     void LoadGroundtruthPose(const string &strDataset);
-
-    bool InitObjectMap();
 public:
 
     // Tracking states
@@ -125,6 +124,7 @@ public:
     int mImgWidth, mImgHeight;
     cv::Mat mImColor;
     cv::Mat mImgInstance;
+    cv::Mat mImgDepth;
     pcl::PointCloud<pcl::PointXYZ>::Ptr mCloud;  
     vector<cv::Point> mvPointsToDrawer;
 
@@ -180,6 +180,7 @@ protected:
     //Other Thread Pointers
     LocalMapping* mpLocalMapper;
     LoopClosing* mpLoopClosing;
+    ObjectManager* mpObjectManager;
 
     //ORB
     ORBextractor* mpORBextractorLeft, *mpORBextractorRight;

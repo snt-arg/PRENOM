@@ -89,8 +89,8 @@ System::System(const string &strVocFile, const string &strSettingsFile,const str
     mptLoopClosing = new thread(&ORB_SLAM2::LoopClosing::Run, mpLoopCloser);
 
     // Initialize the Semantics Manager thread and launch
-    mpSemanticsManager = new SemanticsManager(mpMap, strDataset, strSettingsFile);
-    mptSemanticsManager = new thread(&SemanticsManager::Run, mpSemanticsManager);
+    mpObjectManager = new ObjectManager(mpMap, strDataset, strSettingsFile);
+    mptObjectManager = new thread(&ObjectManager::Run, mpObjectManager);
 
     //Initialize the Viewer thread and launch
     if(bUseViewer)
@@ -103,12 +103,15 @@ System::System(const string &strVocFile, const string &strSettingsFile,const str
     //Set pointers between threads
     mpTracker->SetLocalMapper(mpLocalMapper);
     mpTracker->SetLoopClosing(mpLoopCloser);
+    mpTracker->SetObjectManager(mpObjectManager);
 
     mpLocalMapper->SetTracker(mpTracker);
     mpLocalMapper->SetLoopCloser(mpLoopCloser);
 
     mpLoopCloser->SetTracker(mpTracker);
     mpLoopCloser->SetLocalMapper(mpLocalMapper);
+
+    mpObjectManager->SetLocalMapper(mpLocalMapper);
 
 
     //RO-MAP
@@ -526,11 +529,6 @@ vector<cv::KeyPoint> System::GetTrackedKeyPointsUn()
 {
     unique_lock<mutex> lock(mMutexState);
     return mTrackedKeyPointsUn;
-}
-
-void System::AddTaskToSemanticsManager(const SemanticsManager::Task &task)
-{
-    mpSemanticsManager->AddTaskToQueue(task);
 }
 
 
