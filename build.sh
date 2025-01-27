@@ -13,6 +13,11 @@ echo "Configuring and building dependencies/line_lbd ..."
 cmake . -B build
 cmake --build build --config Release -j $1
 
+cd ../../third-party/farthest_point_sampling
+echo "Configuring and building third-party/farthest_point_sampling ..."
+cmake . -B build
+cmake --build build --config Release -j $1
+
 cd ../../
 echo "Configuring and building RO-MAP ..."
 cmake . -B build

@@ -31,6 +31,7 @@ checkpoints
 
 # misc
 backup
+scratch.py
 
 # containers
 *.sif
@@ -39,6 +40,7 @@ backup
 # datasets
 room/
 scene1/
+scene2/
 *.ply
 
 # python specific

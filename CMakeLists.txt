@@ -20,6 +20,17 @@ MESSAGE("Build type: " ${CMAKE_BUILD_TYPE})
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+
+###########
+# OpenMP  #
+###########
+find_package(OpenMP)
+if (OPENMP_FOUND)
+    set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
+endif()
+
 ##########
 # OpenCV #
 ##########
@@ -59,6 +70,7 @@ ${EIGEN3_INCLUDE_DIR}
 ${Pangolin_INCLUDE_DIRS}
 ${PCL_INCLUDE_DIRS}
 ${PROJECT_SOURCE_DIR}/third-party
+${PROJECT_SOURCE_DIR}/third-party/farthest_point_sampling/include
 )
 
 link_directories(${PCL_LIBRARY_DIRS})
@@ -86,10 +98,11 @@ src/KeyFrameDatabase.cc
 src/Sim3Solver.cc
 src/Initializer.cc
 src/Viewer.cc
-#OBJECT-NERF-SLAM
 src/ObjectFrame.cc
 src/OptimizeObject.cc
 src/ObjectMap.cc
+src/Utils.cc
+src/ObjectManager.cc
 )
 
 target_link_libraries(${PROJECT_NAME}
@@ -97,10 +110,10 @@ ${OpenCV_LIBS}
 ${EIGEN3_LIBS}
 ${Pangolin_LIBRARIES}
 ${PCL_LIBRARIES}
+${PROJECT_SOURCE_DIR}/third-party/farthest_point_sampling/lib/libFPS_CPU.so
 ${PROJECT_SOURCE_DIR}/dependencies/DBoW2/lib/libDBoW2.so
 ${PROJECT_SOURCE_DIR}/dependencies/g2o/lib/libg2o.so
 ${PROJECT_SOURCE_DIR}/dependencies/line_lbd/lib/libline_lbd.so
-#Multi-Object-NeRF
 ${PROJECT_SOURCE_DIR}/dependencies/Multi-Object-NeRF/Core/build/libMON.so
 )
 
