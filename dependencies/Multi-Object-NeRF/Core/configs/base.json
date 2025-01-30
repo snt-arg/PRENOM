@@ -51,6 +51,13 @@
 		"output_activation": "None",
 		"n_neurons": 64,
 		"n_hidden_layers": 1
+	},
+	"lambdas": {
+		"density": 0.01,
+		"depth": 0.5
+	},
+	"misc": {
+		"depth_prescale": 5.9
 	}
 }
 

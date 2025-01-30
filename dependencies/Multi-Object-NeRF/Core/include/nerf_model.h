@@ -193,6 +193,11 @@ public:
     bool mbBatchDataAllocated = false;
     BatchData mBatchMemory;
 
+    // hyperparameters for training
+    float mnDensityPreScale = 5.5f;
+    float mnDepthLambda = 0.5f;
+    float mnDensityLambda = 0.01f;
+
     //Mesh
     MeshState mMesh;
 

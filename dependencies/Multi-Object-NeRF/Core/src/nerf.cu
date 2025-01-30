@@ -215,9 +215,10 @@ void NeRF::TrainOffline(const int nSteps, const int nItersPerStep)
     if (mbVisualize)
     {
         // [DEBUG] - generate a mesh for visualization before training - to see impact of initial weights
-        mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"",false);
+        mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"",true);
         mpModel->TransCPUMesh(mpModel->mpInferenceStream,mCPUMeshData);
         usleep(1000 * 1000);
+        mpModel->mbDensityLoaded = true;
     }
 
     //Training

@@ -667,8 +667,11 @@ __global__ void SampleRandomFromCDF(const uint32_t nRays,const uint32_t nSampleN
     // }
 }
 
-__global__ void GenerateRaysCDF(const uint32_t nRays,const uint32_t nCdfSampleNum, const BoundingBox Bbox,
-                                const Ray* rays, const float* densityGrid, float* cdf)
+__global__ void GenerateRaysCDF(const uint32_t nRays,const uint32_t nCdfSampleNum,
+                                ENerfActivation densityActivation, 
+                                const float densityPreScale,
+                                const BoundingBox Bbox, const Ray* rays,
+                                const float* densityGrid, float* cdf)
 {
     const int i = threadIdx.x + blockDim.x * blockIdx.x;
     if(i >= nRays)
@@ -683,8 +686,17 @@ __global__ void GenerateRaysCDF(const uint32_t nRays,const uint32_t nCdfSampleNu
     float t = 0;
     
     Eigen::Vector3f point;
+    float T = 1.0f;
+    const float EPS = 1e-4f;
     for(int n=0; n<nCdfSampleNum; n++)
     {
+        if (T < EPS)
+        {
+            for (int m=n; m<nCdfSampleNum; m++)
+                cdf[m] = 0.0f;
+            break;
+        }
+
         t = tmin + dt * float(n);
 
         point = o + t * d;
@@ -708,25 +720,45 @@ __global__ void GenerateRaysCDF(const uint32_t nRays,const uint32_t nCdfSampleNu
         const float c0 = c00 * (1 - yd) + c10 * yd;
         const float c1 = c01 * (1 - yd) + c11 * yd;
         const float c = c0 * (1 - zd) + c1 * zd;
-        cdf[n] = c;  
-        // printf("For point %f %f %f, density is %f\n", point.x(), point.y(), point.z(), c);     
+
+        const float outputDensity = network_to_density(c/densityPreScale, densityActivation);
+        const float occProb = 1.0f - __expf(-outputDensity * dt);
+        const float termProb = occProb * T;
+        T *= (1.0f - occProb);
+        cdf[n] = termProb;
+
+        // printf("For point %f %f %f, density is %f\n", point.x(), point.y(), point.z(), termProb);     
     }
 
-    // first loop calculates sum and min, second loop normalizes and cumulates
+    // calculate sum
     float sum = 0;
-    float min = 1000;
-    for (int n=0; n<nCdfSampleNum; n++) {
-        if (cdf[n] < min)
-            min = cdf[n];
+    for (int n=0; n<nCdfSampleNum; n++)
         sum += cdf[n];
-    }
-    sum -= min * nCdfSampleNum;
-    cdf[0] = (cdf[0] - min) / sum;
-    for (int n=1; n<nCdfSampleNum; n++)
-        cdf[n] = (cdf[n] - min) / sum + cdf[n-1];
+    // printf("Sum is %f\n", sum);
 
-    // put last value to 1.0 (floating precision errors)
-    cdf[nCdfSampleNum-1] = 1.00;
+    // stick with uniform sampling if ray is escaping
+    if (sum < EPS)
+    {
+        for (int n=0; n<nCdfSampleNum-1; n++)
+            cdf[n] = (n + 1) / float(nCdfSampleNum);
+        cdf[nCdfSampleNum-1] = 1.0f;
+        return;
+    }
+
+    // normalize to get cdf
+    cdf[0] = cdf[0]/sum;
+    for (int n=1; n<nCdfSampleNum-1; n++)
+    {
+        cdf[n] = cdf[n]/sum + cdf[n-1];
+        if (cdf[n] >= 1.0f)
+        {
+            for (int m=n+1; m<nCdfSampleNum; m++)
+                cdf[m] = 1.0f;
+            return;
+        }
+    }
+    // explicitly put last value to 1.0 (floating precision errors)
+    cdf[nCdfSampleNum-1] = 1.0f;
 
     // // print the cdf array
     // printf("For ray %d, the cdf array is:\n", i);
@@ -1023,6 +1055,8 @@ __global__ void VolumeRenderGradient_No_Compacted(const uint32_t nRays,const uin
                             ENerfActivation rgb_activation,
                             ENerfActivation density_activation,
                             float loss_scale,
+                            const float depthSupervisionLambda,
+                            const float densitySupervisionLambda,
                             tcnn::network_precision_t* RgbSigmaOutput,
                             float* PointsInput,
                             float* SamplesDistances,
@@ -1069,9 +1103,8 @@ __global__ void VolumeRenderGradient_No_Compacted(const uint32_t nRays,const uin
     float depth_ray = depth_rays[0];
     //L1 loss
     float dloss_ddepth = 0.0f;
-    const float depth_supervision_lambda = 0.5f;
     if(depthtarget > 0.0f)
-        dloss_ddepth = depth_supervision_lambda * (depth_ray - depthtarget >= 0.f ? 1.0f : -1.0f); 
+        dloss_ddepth = depthSupervisionLambda * (depth_ray - depthtarget >= 0.f ? 1.0f : -1.0f); 
         
     //mask 1.0f or 0.0f;
     float mask_ray = mask_rays[0];
@@ -1140,7 +1173,7 @@ __global__ void VolumeRenderGradient_No_Compacted(const uint32_t nRays,const uin
         {   //background ray
             dloss_dmask = mask_supervision_lambda * (mask_ray >= 0 ? 1.0f : -1.0f);
             //dloss_by_dmlp = density_derivative * dt * lg.gradient.matrix().dot((T * rgb - suffix).matrix()) + density_derivative * 0.01f;
-            dloss_by_dmlp =  density_derivative * dt * dloss_dmask * dmask_ddensity + density_derivative * 0.01f;
+            dloss_by_dmlp =  density_derivative * dt * dloss_dmask * dmask_ddensity + density_derivative * densitySupervisionLambda;
         }
 
         local_dL_doutput[3] = loss_scale * dloss_by_dmlp;
@@ -1468,6 +1501,7 @@ NeRF_Model::NeRF_Model(int id, int GPUid, const BoundingBox& BBox, const Eigen::
     mInstanceId = InstanceId;
     cudaSetDevice(mGPUid);
     mNetworkConfig = ClassNetworkConfig;
+    mDensityGrid.resize(GRID_SIZE*GRID_SIZE*GRID_SIZE);
     CUDA_CHECK_THROW(cudaStreamCreate(&mpTrainStream));
     CUDA_CHECK_THROW(cudaStreamCreate(&mpInferenceStream));
 }
@@ -1537,6 +1571,13 @@ bool NeRF_Model::ResetNetwork()
     mpTrainer = std::make_shared<tcnn::Trainer<float, precision_t, precision_t>>(mpNetwork, mpOptimizer, mpLoss);
 	mnTrainingStep = 0;
 
+    // set lambdas
+    mnDepthLambda = config["lambdas"]["depth"];
+    mnDensityLambda = config["lambdas"]["density"];
+
+    // set misc hyperparameters
+    mnDensityPreScale = config["misc"]["depth_prescale"];
+
     //random
     m_rng = tcnn::default_rng_t{m_seed};
 
@@ -1575,43 +1616,6 @@ bool NeRF_Model::LoadModel(const string path, const bool loadMeta)
 		std::cout << "Exception while loading model: " << e.what() << std::endl;
         return false;
 	}
-
-    // // get the density and save it
-    // std::string density_file = path.substr(0, path.find_last_of("/")) + "/laptop_density.ply";
-    // std::ifstream file(density_file);
-    // if (!file) {
-    //     std::cerr << "Error opening density file" << std::endl;
-    //     return false;
-    // }
-
-    // std::string line;
-    // bool hasHeaderEnded = false;
-    // const int nVoxels = GRID_SIZE*GRID_SIZE*GRID_SIZE;
-    // float densities[nVoxels];
-
-    // while (std::getline(file, line)) {
-    //     if (line == "end_header") {
-    //         hasHeaderEnded = true;
-    //         break;
-    //     }
-    // }
-
-    // // read the density values
-    // size_t index = 0;
-    // while (std::getline(file, line)) {
-    //     std::istringstream iss(line);
-    //     float density;
-    //     if (!(iss >> density >> density >> density >> density)) {
-    //         break;
-    //     }
-    //     densities[index++] = density;
-    // }
-
-    // mDensityGrid.resize(nVoxels);
-    // mDensityGrid.copy_from_host(densities);
-    // mbDensityLoaded = true;
-    // std::cout << "Loaded " << index << " densities" << std::endl;
-
     return true;
 }
 
@@ -1851,6 +1855,8 @@ void NeRF_Model::GenerateBatch(cudaStream_t pStream,std::shared_ptr<NeRF_Dataset
         tcnn::linear_kernel(GenerateRaysCDF,0,pStream,
             mnRaysPerBatch,
             mnCdfSampleNum,
+            mDensityActivation,
+            mnDensityPreScale,
             mBoundingBox,
             mBatchMemory.Rays.data(),
             mDensityGrid.data(),
@@ -1970,6 +1976,8 @@ void NeRF_Model::Step_No_Compacted(cudaStream_t pStream)
         mRgbActivation,
         mDensityActivation,
         mLoss_Scale,
+        mnDepthLambda,
+        mnDensityLambda,
         Batch.RgbSigmaOutput.data(),
         Batch.PointsInput.data(),
         Batch.SamplesDistances.data(),
@@ -2380,7 +2388,7 @@ void NeRF_Model::GenerateMesh(cudaStream_t pStream, MeshData& mMeshData, const s
     Eigen::Vector3i res3i = GetMarchingCubesRes(mMesh.res, box);
     float thresh = mMesh.thresh;
     tcnn::GPUMemory<float> density = GetDensityOnGrid(res3i, box,pStream);
-    
+
     // copy to mDensityGrid
     if (copyDensity) {
         cudaMemcpy(mDensityGrid.data(),density.data(),density.size()*sizeof(float),cudaMemcpyDeviceToDevice);
