@@ -212,14 +212,20 @@ void NeRF::TrainOffline(const int nSteps, const int nItersPerStep)
     auto allocate_time = std::chrono::steady_clock::now();
     cout<<"allocate_time: "<<std::chrono::duration_cast<std::chrono::milliseconds>(allocate_time - start).count()<<std::endl;
 
+    const bool densityLoaded = mpModel->mbDensityLoaded;
+
     // commenting since generation of mesh is needed for point sampling in rays
-    // if (mbVisualize)
+    if (mbVisualize || densityLoaded)
     {
         // [DEBUG] - generate a mesh for visualization before training - to see impact of initial weights
-        mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"");
+        mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"", !densityLoaded);
         mpModel->TransCPUMesh(mpModel->mpInferenceStream,mCPUMeshData);
-        usleep(1000 * 1000);
-        mpModel->mbDensityLoaded = true;
+        
+        if (mbVisualize)
+        {
+            // [DEBUG] - slow down to observe the mesh progress
+            usleep(200 * 1000);
+        }
     }
 
     //Training
@@ -227,9 +233,9 @@ void NeRF::TrainOffline(const int nSteps, const int nItersPerStep)
     {
         mpModel->Train_Step(mpTrainData, nItersPerStep);
         // commenting since generation of mesh is needed for point sampling in rays
-        // if(i % 1 == 0 && mbVisualize)
+        if(mbVisualize || densityLoaded)
         {
-            mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"");
+            mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"", !densityLoaded);
             //TransMesh uses VBO, visualization directly uses GPU data, but there are bugs
             //TransCPUMesh. The data is sent to the cpu first, and then opengl sends it to the GPU, wasting time and resources
             //mpModel->TransMesh(mMeshData);

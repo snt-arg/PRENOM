@@ -1616,6 +1616,7 @@ bool NeRF_Model::LoadModel(const string path, const bool loadMeta)
 		std::cout << "Exception while loading model: " << e.what() << std::endl;
         return false;
 	}
+    mbDensityLoaded = true;
     return true;
 }
 
