@@ -212,10 +212,11 @@ void NeRF::TrainOffline(const int nSteps, const int nItersPerStep)
     auto allocate_time = std::chrono::steady_clock::now();
     cout<<"allocate_time: "<<std::chrono::duration_cast<std::chrono::milliseconds>(allocate_time - start).count()<<std::endl;
 
-    if (mbVisualize)
+    // commenting since generation of mesh is needed for point sampling in rays
+    // if (mbVisualize)
     {
         // [DEBUG] - generate a mesh for visualization before training - to see impact of initial weights
-        mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"",true);
+        mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"");
         mpModel->TransCPUMesh(mpModel->mpInferenceStream,mCPUMeshData);
         usleep(1000 * 1000);
         mpModel->mbDensityLoaded = true;
@@ -225,7 +226,8 @@ void NeRF::TrainOffline(const int nSteps, const int nItersPerStep)
     for(int i=1;i<=nSteps;i++)
     {
         mpModel->Train_Step(mpTrainData, nItersPerStep);
-        if(i % 1 == 0 && mbVisualize)
+        // commenting since generation of mesh is needed for point sampling in rays
+        // if(i % 1 == 0 && mbVisualize)
         {
             mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"");
             //TransMesh uses VBO, visualization directly uses GPU data, but there are bugs
@@ -247,7 +249,7 @@ void NeRF::TrainOffline(const int nSteps, const int nItersPerStep)
         }
 
         // use both identifier (default: 999) and object id to save all object meshes
-        mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"");
+        mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"",false);
         mpModel->TransCPUMesh(mpModel->mpInferenceStream,mCPUMeshData);
         mpModel->SaveMesh(mOutputDir + std::to_string(mnIdentifier) + "_" + std::to_string(mId) + ".ply");
     }
