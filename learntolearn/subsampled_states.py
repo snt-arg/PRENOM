@@ -2,67 +2,84 @@
 # "task_name": {
 #    "inner_lr": (min, max),
 #    "log2_hashmap_size": (choices,),
-#    "per_level_scale": (choices,),
+#    "per_level_scale": (min, max),
 #    "n_neurons": (choices,),
-#    "n_hidden_layers": (choices,)
+#    "n_hidden_layers": (choices,),
+#    "density_lambda": (min, max),
+#    "depth_lambda": (min, max),
 # }
 
 
 SUBSAMPLED_STATES = {
     "laptop": { # final
-        "inner_lr": (0.0190, 0.0249),
+        "inner_lr": (0.0150, 0.0250),
         "log2_hashmap_size": (14, 15,),
-        "per_level_scale": (1.25992,),
-        "n_neurons": (64,),
-        "n_hidden_layers": (1, 2,)
+        "per_level_scale": (1.26, 1.50),
+        "n_neurons": (16, 32, 64,),
+        "n_hidden_layers": (1, 2, 3,),
+        "density_lambda": (0.010, 0.050),
+        "depth_lambda": (1.500, 1.970),
     },
     "mug": { # final
-        "inner_lr": (0.00525, 0.0118),
+        "inner_lr": (0.00200, 0.0118),
         "log2_hashmap_size": (14, 15, 16, 17),
-        "per_level_scale": (1.25992, 1.31951, 1.38191, 1.44727,),
-        "n_neurons": (16, 32, 64, 128),
-        "n_hidden_layers": (1, 2)
+        "per_level_scale": (1.32, 1.60),
+        "n_neurons": (16, 32, 64,),
+        "n_hidden_layers": (1, ),
+        "density_lambda": (0.140, 0.180),
+        "depth_lambda": (0.030, 0.800),
     },
     "ball": { # final
-        "inner_lr": (0.0140, 0.0150),
-        "log2_hashmap_size": (14, 15,),
-        "per_level_scale": (1.38191, 1.44727,),
+        "inner_lr": (0.00140, 0.0150),
+        "log2_hashmap_size": (14, 15, 16, 17),
+        "per_level_scale": (1.45, 2.00),
         "n_neurons": (16, 32, 64),
-        "n_hidden_layers": (1, 2, 3)
+        "n_hidden_layers": (1,),
+        "density_lambda": (0.080, 0.130),
     },
     "display": { # final
-        "inner_lr": (0.0193, 0.0235),
-        "log2_hashmap_size": (14, 15,),
-        "per_level_scale": (1.25992, 1.31951, 1.38191, 1.44727,),
-        "n_neurons": (64, 128,),
-        "n_hidden_layers": (1, 2,)
+        "inner_lr": (0.0193, 0.0250),
+        "log2_hashmap_size": (14, 15, 16,),
+        "per_level_scale": (1.30, 1.40),
+        "n_neurons": (16, 32, 64,),
+        "n_hidden_layers": (1, 2, 3,),
+        "density_lambda": (0.001, 0.01),
+        "depth_lambda": (0.300, 2.000),
     },
     "book": { # final
-        "inner_lr": (0.0188, 0.0238),
+        "inner_lr": (0.00100, 0.015),
         "log2_hashmap_size": (14, 15, 16,),
-        "per_level_scale": (1.25992, 1.31951,),
-        "n_neurons": (16, 32, 64,),
-        "n_hidden_layers": (1, 2, 3, )
+        "per_level_scale": (1.50, 2.00),
+        "n_neurons": (16, 32,),
+        "n_hidden_layers": (1, ),
+        "density_lambda": (0.010, 0.13),
+        "depth_lambda": (1.555, 1.980),
     },
     "keyboard": { # final
-        "inner_lr": (0.0226, 0.0248),
-        "log2_hashmap_size": (14, ),
-        "per_level_scale": (1.25992, 1.31951, 1.38191, 1.44727,),
-        "n_neurons": (16, 32, 64, 128,),
-        "n_hidden_layers": (1, 2,)
+        "inner_lr": (0.0100, 0.0250),
+        "log2_hashmap_size": (14, 15, ),
+        "per_level_scale": (1.58, 1.90),
+        "n_neurons": (16, 32, ),
+        "n_hidden_layers": (1, 2, 3,),
+        "density_lambda": (0.000, 0.001),
+        "depth_lambda": (0.800, 1.400),
     },
     "mouse": { # final
-        "inner_lr": (0.0163, 0.0225),
+        "inner_lr": (0.00100, 0.0100),
         "log2_hashmap_size": (14, 15, 16, 17,),
-        "per_level_scale": (1.25992, 1.31951, 1.38191, 1.44727,),
-        "n_neurons": (16, 32, 64,),
-        "n_hidden_layers": (1, 2, 3,)
+        "per_level_scale": (1.26, 1.80),
+        "n_neurons": (16, 32, ),
+        "n_hidden_layers": (1, ),
+        "density_lambda": (0.010, 0.100),
+        "depth_lambda": (0.100, 1.900),
     },
     "plant": { # final
-        "inner_lr": (0.0180, 0.0240),
-        "log2_hashmap_size": (15, 16,),
-        "per_level_scale": (1.25992, 1.31951),
-        "n_neurons": (16,),
-        "n_hidden_layers": (1,)
+        "inner_lr": (0.0180, 0.0250),
+        "log2_hashmap_size": (14, 15, 16,),
+        "per_level_scale": (1.30, 1.55),
+        "n_neurons": (16, 32, 64),
+        "n_hidden_layers": (1, 2,),
+        "density_lambda": (0.000, 0.010),
+        "depth_lambda": (1.000, 1.500),
     },
 }
