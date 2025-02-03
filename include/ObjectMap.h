@@ -49,6 +49,80 @@ struct Cuboid
 
 };
 
+struct ObjectConfig
+{
+    int classId;
+    bool isKnown;
+
+    struct align {
+        bool isDensityBased;
+        bool polyFit;
+        float metricResolution;
+        float normalizedResolution;
+        int numSampleAngles;
+    } align;
+
+    struct icp {
+        bool enabled;
+        float maxIterations;
+        float maxTransPercent;
+        float minRotCos;
+    } icp;
+
+    struct symmetry {
+        bool isRotational;
+        bool isReflectional;
+    } symmetry;
+
+    struct bbox {
+        float expand;
+        float incrementX;
+        float incrementY;
+        float incrementZ;
+    } bbox;
+
+    struct pointcloud {
+        size_t maxPoints;
+        size_t minPoints;
+    } pointcloud;
+
+    struct downsample {
+        float voxelSize;
+        int minPointsPerVoxel;
+    } downsample;
+
+    struct outlierRemoval {
+        bool enabled;
+        size_t minNeighbors;
+        float stdDev;
+    } outlierRemoval;
+
+    struct pointcloudEIF {
+        bool enabled;
+        float threshold;
+    } pointcloudEIF;
+
+    struct centroidTTest {
+        bool enabled;
+        size_t minHistorySize;
+    } centroidTTest;
+
+    struct rankSumTest {
+        bool enabled;
+        size_t minHistorySize;
+    } rankSumTest;
+
+    struct clustering {
+        bool enabled;
+        float tolerance;
+    } clustering;
+
+    struct kneedleFilter {
+        bool enabled;
+        size_t uncertainPoints;
+        float sensitivity;
+    } kneedleFilter;
+};
 
 class Object_Map 
 {
@@ -56,7 +130,7 @@ public:
 
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
-    Object_Map(Map* pMap, float tTest[][4]);
+    Object_Map(Map* pMap, ObjectConfig& config, const float* priorDensity, const pcl::PointCloud<pcl::PointXYZ>::Ptr& priorCloud, float tTest[][4]);
 
     //isbad
     bool IsBad();
@@ -104,10 +178,10 @@ public:
     void MergeObject(Object_Map* pObj,const double CurKeyFrameStamp);
 
     // Align objects to their canonical pose based on the class
-    void AlignToCanonical(const bool loadDensity = false, const bool refineICP = true);
+    void AlignToCanonical();
     int ComputeOccupancyScoreOctree(const pcl::octree::OctreePointCloud<pcl::PointXYZ>& octree, 
-                                            const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) const;
-    int ComputeDensityScore(const float* densityGrid, const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) const;
+                                    const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) const;
+    int ComputeDensityScore(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) const;
     pair<Eigen::Vector3d, Eigen::Vector3d> GetSizeTransFromTransform(const vector<Eigen::Vector3d>& points, const Eigen::Matrix4d& T);
     void EIFFilterOutlierCloud();
 
@@ -206,23 +280,11 @@ public:
     Eigen::Matrix4d mFrozenTow;
 
     // hyperparameters for objects
-    // cloud size
-    size_t mnMinCloudPoints = 100;
-    size_t mnMaxCloudPoints = 1500;
-    
-    // downsampling
-    float mnVoxelLeafSize = 0.01;
-    int mnMinPointsPerVoxel = 5;
-    
-    // outlier removal
-    int mnNeighborPoints = 25;
-    float mnStdDevThresh = 1.0;
+    ObjectConfig mConfig;
 
-    // euclidean clustering
-    float mnClusterTolerance = 0.10;
-
-    // centroid history
-    size_t mnMinHistorySize = 50;
+    // prior for alignment
+    const float* mPriorDensity;
+    const pcl::PointCloud<pcl::PointXYZ>::Ptr mPriorModel;
 
     //NeRF
     bool haveNeRF = false;

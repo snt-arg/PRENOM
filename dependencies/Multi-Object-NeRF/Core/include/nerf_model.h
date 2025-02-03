@@ -48,8 +48,10 @@ struct BatchData
     tcnn::GPUMemory<Ray> Rays;          //mnRaysPerBatch
     tcnn::GPUMemory<uint8_t> RaysInstance; //mnRaysPerBatch
     tcnn::GPUMemory<float> RandColors; //mnRaysPerBatch * 3  (r,g,b)
-    tcnn::GPUMatrix<uint32_t> InBboxRaysCounter;    //1
+    tcnn::GPUMemory<float> cdf; // mnRaysPerBatch * mnCdfSampleNum
+    tcnn::GPUMemory<float> sampledFromCDF; // mnRaysPerBatch * mnSampleNum
 
+    tcnn::GPUMatrix<uint32_t> InBboxRaysCounter;    //1
     tcnn::GPUMatrix<float> Target;   // (3,mnRaysPerBatch)
     tcnn::GPUMatrix<float> TargetDepth;   // (1,mnRaysPerBatch)
     tcnn::GPUMatrix<float> PointsInput;     // (3,mnRaysPerBatch * mnSampleNum)
@@ -83,7 +85,7 @@ class NeRF_Model
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     NeRF_Model(int id, int GPUid, const BoundingBox& mBoundingBox, const Eigen::Matrix4f& mObjTow, uint8_t mInstanceId);
-    static bool ReadNetworkConfig(const string config_path);
+    bool ReadNetworkConfig(const string config_path);
     bool ResetNetwork();
     bool ResetMetaModel();
 
@@ -99,6 +101,7 @@ public:
     bool Train_Step(std::shared_ptr<nerf::NeRF_Dataset> pTrainData, const size_t itersPerStep = 500);
     bool Train_Step_Online(std::shared_ptr<nerf::NeRF_Dataset> pTrainData,size_t DataMutexIdx,int iter);
     void Train_Step_Meta(std::shared_ptr<nerf::NeRF_Dataset> pTrainData, const size_t numSteps, const size_t itersPerStep = 500);
+    void UpdateDensityGrid(cudaStream_t pStream);
 
     //Render
     void Render(cudaStream_t pStream,const FrameIdAndBbox box,Eigen::Matrix4f Twc, cv::Mat& img,cv::Mat& depth_img, cv::Mat& mask_img, std::shared_ptr<NeRF_Dataset> pTrainData);

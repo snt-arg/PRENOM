@@ -36,6 +36,7 @@ NeRF::NeRF(const bool saveModel, const int saveIdentifier, const bool visualize,
 }
 
 bool NeRF::CreateModelOffline(const string path, 
+                              const string networkPath,
                               const bool useDenseDepth, 
                               const bool doMeta, 
                               const bool loadModel, 
@@ -51,6 +52,12 @@ bool NeRF::CreateModelOffline(const string path,
     mbUseDepth = useDenseDepth;
     mpModel = std::make_shared<NeRF_Model>(mId,mGPUid,mBoundingBox,mObjTow,mInstanceId);
     mpModel->mbUseDepth = mbUseDepth;
+
+    if (!mpModel->ReadNetworkConfig(networkPath))
+    {
+        cerr << "Read Network Config error..." << endl;
+        exit(0);
+    }
     
     if(!mpModel->ResetNetwork())
     {
@@ -214,11 +221,12 @@ void NeRF::TrainOffline(const int nSteps, const int nItersPerStep)
 
     const bool densityLoaded = mpModel->mbDensityLoaded;
 
-    // commenting since generation of mesh is needed for point sampling in rays
+    // generation of mesh is needed for point sampling in rays
     if (mbVisualize || densityLoaded)
     {
-        // [DEBUG] - generate a mesh for visualization before training - to see impact of initial weights
-        mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"", !densityLoaded);
+        // generate a mesh for visualization before training and also to load densities for probabilistic sampling
+        // mpModel->UpdateDensityGrid(mpModel->mpTrainStream);
+        mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"", densityLoaded);
         mpModel->TransCPUMesh(mpModel->mpInferenceStream,mCPUMeshData);
         
         if (mbVisualize)
@@ -235,7 +243,7 @@ void NeRF::TrainOffline(const int nSteps, const int nItersPerStep)
         // commenting since generation of mesh is needed for point sampling in rays
         if(mbVisualize || densityLoaded)
         {
-            mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"", !densityLoaded);
+            mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"", densityLoaded);
             //TransMesh uses VBO, visualization directly uses GPU data, but there are bugs
             //TransCPUMesh. The data is sent to the cpu first, and then opengl sends it to the GPU, wasting time and resources
             //mpModel->TransMesh(mMeshData);
@@ -255,7 +263,7 @@ void NeRF::TrainOffline(const int nSteps, const int nItersPerStep)
         }
 
         // use both identifier (default: 999) and object id to save all object meshes
-        mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"",false);
+        mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"");
         mpModel->TransCPUMesh(mpModel->mpInferenceStream,mCPUMeshData);
         mpModel->SaveMesh(mOutputDir + std::to_string(mnIdentifier) + "_" + std::to_string(mId) + ".ply");
     }
@@ -287,12 +295,22 @@ void NeRF::SetAttributes(const int Class,const Eigen::Matrix4f& ObjTow,const Bou
     mnBbox = 0;
 }
 
-bool NeRF::CreateModelOnline(bool useSparseDepth, int Iterations, const int classId)
+bool NeRF::CreateModelOnline(bool useSparseDepth, int Iterations, const int classId, const bool known)
 {
     mbUseDepth = useSparseDepth;
     mnIteration = Iterations;
     mpModel = std::make_shared<NeRF_Model>(mId,mGPUid,mBoundingBox,mObjTow,mInstanceId);
     mpModel->mbUseDepth = mbUseDepth;
+
+    string networkPath = "cookbook/" + std::to_string(classId) + "/network.json";
+    if (!known)
+        networkPath = "cookbook/0/network.json";
+
+    if (!mpModel->ReadNetworkConfig(networkPath))
+    {
+        cerr << "Read Network Config error..." << endl;
+        exit(0);
+    }
 
     if(!mpModel->ResetNetwork())
     {
@@ -301,19 +319,18 @@ bool NeRF::CreateModelOnline(bool useSparseDepth, int Iterations, const int clas
     }
 
     // load appropriate model
-    if (classId == 63)
-        mpModel->LoadModel("./models/laptop.json", false);
-    else if (classId == 41)
-        mpModel->LoadModel("./models/mug.json", false);
-    else if (classId == 73)
-        mpModel->LoadModel("./models/book.json", false);
-    else
-        return true;
-    
-    // generate first time mesh
-    mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"", false);
-    mpModel->TransCPUMesh(mpModel->mpInferenceStream,mCPUMeshData);
-        
+    if (known)
+    {
+        if (!mpModel->LoadModel("cookbook/" + std::to_string(classId) + "/weights.json", false))
+        {
+            cerr << "Load Model error..." << endl;
+            exit(0);
+        }
+        // generate first time mesh - also loads densities for probabilistic sampling
+        mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"", mpModel->mbDensityLoaded);
+        mpModel->TransCPUMesh(mpModel->mpInferenceStream,mCPUMeshData);
+        // mpModel->UpdateDensityGrid(mpModel->mpTrainStream);
+    }
 
     return true;
 }
@@ -353,9 +370,10 @@ void NeRF::TrainOnline()
             {
                 mpModel->Train_Step_Online(mpTrainData,mDataMutexIdx,GetTrainIters(train_step_count));
                 train_step_count += 1;
-                if(train_step_count % 1 == 0)
+                if(train_step_count % 2 == 0)
                 {
-                    mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"");
+                    // mpModel->UpdateDensityGrid(mpModel->mpTrainStream);
+                    mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"", mpModel->mbDensityLoaded);
                     
                     //TransMesh uses VBO, visualization directly uses GPU data, but there are bugs
                     //TransCPUMesh. The data is sent to the cpu first, and then opengl sends it to the GPU, wasting time and resources
@@ -373,7 +391,7 @@ void NeRF::TrainOnline()
     
     //last time 
     mpModel->Train_Step_Online(mpTrainData,mDataMutexIdx,GetTrainIters(train_step_count));
-    mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"",false);
+    mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"");
     //mpModel->TransMesh(mMeshData);
     mpModel->TransCPUMesh(mpModel->mpInferenceStream,mCPUMeshData);
     mpModel->SaveMesh(std::to_string(mnIdentifier) + "_" + std::to_string(mId) + ".ply");

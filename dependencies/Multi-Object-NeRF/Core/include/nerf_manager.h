@@ -68,7 +68,7 @@ public:
     //Update the frame pose passed in before, not used
     void UpdateDataset(unsigned int CurId,unsigned int FrameNum,const vector<Eigen::Matrix4f>& Poses);
 
-    size_t CreateNeRF(const int Class, const Eigen::Matrix4f &ObjTow, const nerf::BoundingBox &BoundingBox);
+    size_t CreateNeRF(const int Class, const Eigen::Matrix4f &ObjTow, const nerf::BoundingBox &BoundingBox, const bool known = true);
 
     int GetFrameIdx(double timastamp);
 

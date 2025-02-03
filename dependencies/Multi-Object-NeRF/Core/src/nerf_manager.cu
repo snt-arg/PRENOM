@@ -27,13 +27,6 @@ bool NerfManagerOffline::Init()
     NeRF::GPUnum = mNumGPU;
     cout<<"Detect "<<mNumGPU<<" GPU ..."<<endl;
 
-    //Read config
-    if(!NeRF_Model::ReadNetworkConfig(msNetworkConfigFile))
-    {   
-        cerr << "Read Network Config error..."<<endl;
-        exit(0);
-    }
-
     return true;
 }
 
@@ -84,6 +77,7 @@ bool NerfManagerOffline::CreateNeRF(const string objectFile, const json &systemC
 
     //Create network 
     if(!NeRFInstance->CreateModelOffline(objectFile,
+                                         msNetworkConfigFile,
                                          mbUseDenseDepth,
                                          systemConfig["do_meta"],
                                          systemConfig["load_model"],
@@ -165,12 +159,12 @@ bool NerfManagerOnline::Init()
     NeRF::GPUnum = mNumGPU;
     cout<<"Detect "<<mNumGPU<<" GPU ..."<<endl;
     
-    //Read config
-    if(!NeRF_Model::ReadNetworkConfig(mNetworkConfigFile))
-    {   
-        cerr << "Read Network Config error..."<<endl;
-        exit(0);
-    }
+    // //Read config
+    // if(!NeRF_Model::ReadNetworkConfig(mNetworkConfigFile))
+    // {   
+    //     cerr << "Read Network Config error..."<<endl;
+    //     exit(0);
+    // }
 
     return true;
 }
@@ -252,7 +246,7 @@ void NerfManagerOnline::UpdateDataset(unsigned int CurId,unsigned int FrameNum,c
 
 }
 
-size_t NerfManagerOnline::CreateNeRF(const int Class, const Eigen::Matrix4f &ObjTow, const nerf::BoundingBox &BoundingBox)
+size_t NerfManagerOnline::CreateNeRF(const int classId, const Eigen::Matrix4f &ObjTow, const nerf::BoundingBox &BoundingBox, const bool known)
 {
 
     std::shared_ptr<NeRF> NeRFInstance = std::make_shared<NeRF>();
@@ -264,8 +258,8 @@ size_t NerfManagerOnline::CreateNeRF(const int Class, const Eigen::Matrix4f &Obj
     NeRFInstance->mDataMutexIdx = data_mutex_idx;
     NeRFInstance->mpTrainData->mvUpdateMutex.emplace_back(new std::mutex());
     
-    NeRFInstance->SetAttributes(Class,ObjTow,BoundingBox,mvpDataset[0]->mnImages);
-    if(!NeRFInstance->CreateModelOnline(mbUseSparseDepth,mnTrainStepIterations,Class))
+    NeRFInstance->SetAttributes(classId,ObjTow,BoundingBox,mvpDataset[0]->mnImages);
+    if(!NeRFInstance->CreateModelOnline(mbUseSparseDepth,mnTrainStepIterations,classId,known))
     {
         cerr << "Create NeRF error ..." <<endl;
         exit(0);

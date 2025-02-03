@@ -1,6 +1,8 @@
 #include "ObjectManager.h"
 #include <thread>
 
+#define GRID_SIZE_CUBE 262144
+
 namespace ORB_SLAM2
 {
 
@@ -104,6 +106,125 @@ ObjectManager::ObjectManager(Map* pMap, const string &strDataset, const string &
             f >> tTest[i][j];  
     }
     f.close();
+
+    // load all priors for the objects
+    std::ifstream file("cookbook/recipes.txt");
+    if (!file) {
+        std::cerr << "Error opening recipes file" << std::endl;
+        return;
+    }
+    // fill the mvAvailableClasses
+    std::string line;
+    while (std::getline(file, line)) {
+        std::istringstream iss(line);
+        int classId;
+        iss >> classId;
+        mvAvailableClasses.push_back(classId);
+        continue;
+    }
+    file.close();
+
+    // read the available object configs
+    for (int& classId : mvAvailableClasses) {
+        std::string filename = "cookbook/" + std::to_string(classId) + "/config.json";
+        std::ifstream file(filename);
+        if (!file) {
+            std::cerr << "Error opening config file for class " << classId << std::endl;
+            continue;
+        }
+        nlohmann::json j;
+        file >> j;
+
+        // create the object config
+        ObjectConfig config;
+        config.classId = classId;
+        config.isKnown = classId != 0;
+        config.align.isDensityBased = j["align"]["is_density_based"];
+        config.align.polyFit = j["align"]["poly_fit"];
+        config.align.metricResolution = j["align"]["metric_resolution"];
+        config.align.normalizedResolution = j["align"]["normalized_resolution"];
+        config.align.numSampleAngles = j["align"]["num_sample_angles"];
+        config.icp.enabled = j["icp"]["enabled"];
+        config.icp.maxIterations = j["icp"]["max_iterations"];
+        config.icp.maxTransPercent = j["icp"]["max_trans_percent"];
+        config.icp.minRotCos = j["icp"]["min_rot_cos"];
+        config.symmetry.isReflectional = j["symmetry"]["is_reflectional"];
+        config.symmetry.isRotational = j["symmetry"]["is_rotational"];
+        config.bbox.expand = j["bbox"]["expand"];
+        config.bbox.incrementX = j["bbox"]["increment_x"];
+        config.bbox.incrementY = j["bbox"]["increment_y"];
+        config.bbox.incrementZ = j["bbox"]["increment_z"];
+        config.pointcloud.maxPoints = j["pointcloud"]["max_points"];
+        config.pointcloud.minPoints = j["pointcloud"]["min_points"];
+        config.downsample.voxelSize = j["downsample"]["voxel_size"];
+        config.downsample.minPointsPerVoxel = j["downsample"]["min_points_per_voxel"];
+        config.clustering.enabled = j["clustering"]["enabled"];
+        config.clustering.tolerance = j["clustering"]["tolerance"];
+        config.outlierRemoval.enabled = j["outlier_removal"]["enabled"];
+        config.outlierRemoval.minNeighbors = j["outlier_removal"]["min_neighbors"];
+        config.outlierRemoval.stdDev = j["outlier_removal"]["std_dev"];
+        config.pointcloudEIF.enabled = j["pointcloud_eif"]["enabled"];
+        config.pointcloudEIF.threshold = j["pointcloud_eif"]["threshold"];
+        config.centroidTTest.enabled = j["centroid_t_test"]["enabled"];
+        config.centroidTTest.minHistorySize = j["centroid_t_test"]["min_history_size"];
+        config.rankSumTest.enabled = j["rank_sum_test"]["enabled"];
+        config.rankSumTest.minHistorySize = j["rank_sum_test"]["min_history_size"];
+        config.kneedleFilter.enabled = j["kneedle_filter"]["enabled"];
+        config.kneedleFilter.uncertainPoints = j["kneedle_filter"]["uncertain_points"];
+        config.kneedleFilter.sensitivity = j["kneedle_filter"]["sensitivity"];
+        mmObjectConfigs[classId] = config;
+
+        // defaults only have configs
+        if (classId == 0)
+            continue;
+
+        // load the prior type based on the config
+        if (config.align.isDensityBased)
+        {
+            // load the density grid
+            std::string densityPath = "cookbook/" + std::to_string(classId) + "/density.ply";
+            float densities[GRID_SIZE_CUBE];
+            float* densityGrid = densities;
+            std::ifstream densityFile(densityPath);
+            if (!densityFile) {
+                std::cerr << "Error opening density file" << std::endl;
+                continue;
+            }
+
+            std::string line;
+            while (std::getline(densityFile, line)) {
+                if (line == "end_header")
+                    break;
+            }
+
+            // read the density values
+            size_t index = 0;
+            while (std::getline(densityFile, line)) {
+                std::istringstream iss(line);
+                float density;
+                if (!(iss >> density >> density >> density >> density)) {
+                    break;
+                }
+                densities[index++] = density;
+            }
+            mmObjectDensities[classId] = densityGrid;
+        }
+        else
+        {
+            // load the ply model
+            pcl::PointCloud<pcl::PointXYZ>::Ptr model(new pcl::PointCloud<pcl::PointXYZ>);
+            std::string modelPath = "cookbook/" + std::to_string(classId) + "/model.ply";
+            if (pcl::io::loadPLYFile<pcl::PointXYZ>(modelPath, *model) == -1) {
+                std::cerr << "Error loading model file for class " << classId << std::endl;
+                continue;
+            }
+            model->width = model->size();
+            model->height = 1;
+            model->is_dense = false;
+            mmObjectModels[classId] = model;
+        }
+        
+    }
 }
 
 void ObjectManager::AddTaskToQueue(Task task)
@@ -133,8 +254,9 @@ void ObjectManager::Run()
         const cv::Mat imGray = currentTask.imgGray;
         const cv::Mat imgInstance = currentTask.imgInstance;
         const cv::Mat imgDepth = currentTask.imgDepth;
-        // const Eigen::Matrix4f Twc = Converter::toMatrix4f(pKF->GetPoseInverse());
-        const Eigen::Matrix4f Twc = Converter::toMatrix4f(pFrame->mTcw).inverse();
+        Eigen::Matrix4f Twc = Converter::toMatrix4f(pFrame->mTcw).inverse();
+        if (pKF)
+            Twc = Converter::toMatrix4f(pKF->GetPoseInverse());
         mTaskQueue.pop();
         lock.unlock();
 
@@ -778,9 +900,21 @@ void ObjectManager::Run()
                     }
                     else
                     {
-                        //cout<<"creat new ObjectMap: "<<obj.mnClass<<endl;
                         //creat new ObjectMap
-                        Object_Map* newObjMap = new Object_Map(mpMap, tTest);
+                        int classId = obj.mnClass;
+                        float* priorDensity = static_cast<float*>(NULL);
+                        pcl::PointCloud<pcl::PointXYZ>::Ptr priorModel;
+                        if (find(mvAvailableClasses.begin(), mvAvailableClasses.end(), classId) == mvAvailableClasses.end())
+                        {
+                            classId = 0;
+                        }
+                        else
+                        {
+                            priorDensity = mmObjectDensities[classId];
+                            priorModel = mmObjectModels[classId];
+                        }
+
+                        Object_Map* newObjMap = new Object_Map(mpMap, mmObjectConfigs[classId], priorDensity, priorModel, tTest);
                         newObjMap->mnCreatFrameId = pFrame->mnId;
                         newObjMap->mnlatestObsFrameId = pFrame->mnId;
                         newObjMap->mnObs++;
@@ -923,8 +1057,20 @@ bool ObjectManager::InitObjectMap(Frame* pFrame)
             continue;
         }
         
-        //creat new ObjectMap
-        Object_Map* newObjMap = new Object_Map(mpMap, tTest);
+        //create new ObjectMap
+        int classId = ObjFrame[i].mnClass;
+        float* priorDensity = static_cast<float*>(NULL);
+        pcl::PointCloud<pcl::PointXYZ>::Ptr priorModel;
+        if (find(mvAvailableClasses.begin(), mvAvailableClasses.end(), classId) == mvAvailableClasses.end())
+        {
+            classId = 0;
+        }
+        else
+        {
+            priorDensity = mmObjectDensities[classId];
+            priorModel = mmObjectModels[classId];
+        }
+        Object_Map* newObjMap = new Object_Map(mpMap, mmObjectConfigs[classId], priorDensity, priorModel, tTest);
         newObjMap->mnCreatFrameId = pFrame->mnId;
         newObjMap->mnlatestObsFrameId = pFrame->mnId;
         newObjMap->mnObs++;

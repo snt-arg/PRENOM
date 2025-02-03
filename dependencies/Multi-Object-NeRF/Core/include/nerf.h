@@ -23,14 +23,14 @@ public:
     NeRF(const bool saveModel = true, const int saveIdentifier = 999, const bool visualize = true, const std::string outputDir = "./output/");
 
     //offline train function
-    bool CreateModelOffline(const string path, const bool useDenseDepth, const bool doMeta, const bool loadModel, const string modelPath);
+    bool CreateModelOffline(const string path, const string networkPath, const bool useDenseDepth, const bool doMeta, const bool loadModel, const string modelPath);
     bool ReadBboxOffline(const string path);
     void TrainOffline(const int nSteps, const int nItersPerStep);
     void TrainMeta(const int nMetaLoops, const int nMetaSteps, const int nMetaItersPerStep);
     
     //online train function
     void SetAttributes(const int Class,const Eigen::Matrix4f& ObjTow,const BoundingBox& BoundingBox,size_t numBbox);
-    bool CreateModelOnline(bool useSparseDepth, int Iterations, const int classId);
+    bool CreateModelOnline(bool useSparseDepth, int Iterations, const int classId, const bool known = true);
     void TrainOnline();
     void UpdateFrameBBox(const vector<nerf::FrameIdAndBbox>& vFrameBbox, const int train_step);
     bool CheckFinish();

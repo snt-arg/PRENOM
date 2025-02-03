@@ -85,14 +85,27 @@ namespace ORB_SLAM2
         static void pointcloudEuclideanClustering(const pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud, std::vector<pcl::PointIndices> &clusterIndices, const float clusterTolerance);
 
 
+        /**
+         * @brief Gets the robust size from the pointcloud
+         *
+         * @param cloud the pointcloud to be processed
+         * @param kneedleSensitivity the sensitivity for the kneedle method
+         * @param numUncertain the number of uncertain points
+         */
         template <typename PointT>
-        static tuple<Eigen::VectorXd, Eigen::VectorXd, Eigen::VectorXd> getRobustSizeFromPointCloud(const typename pcl::PointCloud<PointT>::Ptr &cloud);
-
+        static tuple<Eigen::VectorXd, Eigen::VectorXd, Eigen::VectorXd> getRobustSizeFromPointCloud(const typename pcl::PointCloud<PointT>::Ptr &cloud,
+                                                                                                    const float kneedleSensitivity, const size_t numUncertain);
         static Eigen::VectorXd getKneedleThreshold(const Eigen::VectorXd& localMaximasY, const Eigen::VectorXd& xNorm, const float sensistivity);
         static int getKneePoint(const Eigen::VectorXd &values, const float sensitivity = 1.0, const uint8_t polyDeg = 0);
         static Eigen::VectorXd minMaxNormalize(const Eigen::VectorXd& values);
         static Eigen::VectorXi findLocalExtrema(const Eigen::VectorXd& values, bool max);
 
+        /**
+         * @brief Checks the rank sum test for the incoming pointcloud
+         *
+         * @param existingCloud the existing pointcloud
+         * @param incomingCloud the incoming pointcloud
+         */
         static bool checkRankSumTest(const pcl::PointCloud<pcl::PointXYZ>::Ptr &existingCloud, 
                                      const pcl::PointCloud<pcl::PointXYZ>::Ptr &incomingCloud);
 

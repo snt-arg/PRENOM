@@ -59,7 +59,7 @@ public:
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud;
     };
 
-
+    
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
     ObjectManager(Map* pMap, const string &strDataset, const string &strSettingPath);
@@ -68,7 +68,7 @@ public:
     void SetLocalMapper(LocalMapping* pLocalMapper);
 
     // points to draw
-    vector<cv::Point> mvPointsToDrawer;    
+    vector<cv::Point> mvPointsToDrawer;
 
     
 protected:
@@ -95,6 +95,14 @@ protected:
     // frames - can be keyframes or otherwise
     Frame* mpLastFrame;
     
+    // available classes
+    vector<int> mvAvailableClasses;
+
+    // object configs and priors
+    unordered_map<int, ObjectConfig> mmObjectConfigs;
+    unordered_map<int, pcl::PointCloud<pcl::PointXYZ>::Ptr> mmObjectModels;
+    unordered_map<int, float*> mmObjectDensities;
+    ObjectConfig mDefaultObjectConfig;
 
     //parameter
     bool mbExtendBox;

@@ -43,13 +43,13 @@ typename pcl::PointCloud<PointT>::Ptr Utils::pointcloudDistanceFilter(
 
     // Filter the point cloud
     copy_if(cloud->begin(),
-                    cloud->end(),
-                    back_inserter(filteredCloud->points),
-                    [&](const PointT &p)
-                    {
-                        distance = p.z;
-                        return distance > thresholdNear && distance < thresholdFar;
-                    });
+            cloud->end(),
+            back_inserter(filteredCloud->points),
+            [&](const PointT &p)
+            {
+                distance = p.z;
+                return distance > thresholdNear && distance < thresholdFar;
+            });
 
     filteredCloud->height = 1;
     filteredCloud->is_dense = false;
@@ -137,14 +137,11 @@ void Utils::pointcloudFarthestPointSampling(typename pcl::PointCloud<PointT>::Pt
 template void Utils::pointcloudFarthestPointSampling<pcl::PointXYZ>(pcl::PointCloud<pcl::PointXYZ>::Ptr &, size_t);
 
 template <typename PointT>
-tuple<Eigen::VectorXd, Eigen::VectorXd, Eigen::VectorXd> Utils::getRobustSizeFromPointCloud(const typename pcl::PointCloud<PointT>::Ptr &cloud)
+tuple<Eigen::VectorXd, Eigen::VectorXd, Eigen::VectorXd> Utils::getRobustSizeFromPointCloud(const typename pcl::PointCloud<PointT>::Ptr &cloud,
+                                                                                            const float kneedleSensitivity, const size_t numUncertain)
 {
     // use the knee method to rule out outliers
     const size_t numPoints = cloud->size();
-    const float kneedleSensitivity = 20.0;
-    size_t numUncertain = static_cast<size_t>(numPoints * 0.020);
-    if (numUncertain < 20)
-        numUncertain = 20;
 
     // sort each axis
     Eigen::VectorXd xValues(numPoints), yValues(numPoints), zValues(numPoints);
@@ -159,7 +156,7 @@ tuple<Eigen::VectorXd, Eigen::VectorXd, Eigen::VectorXd> Utils::getRobustSizeFro
     sort(zValues.begin(), zValues.end());
 
     // if not enough points, return the values
-    // if (numPoints < 200)
+    if (numPoints < 200)
         return make_tuple(xValues, yValues, zValues);
 
     // for each dimenstion, calculate the size for all points until the numUncertain
@@ -189,13 +186,6 @@ tuple<Eigen::VectorXd, Eigen::VectorXd, Eigen::VectorXd> Utils::getRobustSizeFro
         cout << xPosSizes << endl;
         cout << endl;
     }
-
-    // xKneePos = xKneePos == -1 ? 0 : xKneePos;
-    // xKneeNeg = xKneeNeg == -1 ? 0 : xKneeNeg;
-    // yKneePos = yKneePos == -1 ? 0 : yKneePos;
-    // yKneeNeg = yKneeNeg == -1 ? 0 : yKneeNeg;
-    // zKneePos = zKneePos == -1 ? 0 : zKneePos;
-    // zKneeNeg = zKneeNeg == -1 ? 0 : zKneeNeg;
 
     // most conservative knee point
     const double minX = xValues(xKneePos);
@@ -232,7 +222,8 @@ tuple<Eigen::VectorXd, Eigen::VectorXd, Eigen::VectorXd> Utils::getRobustSizeFro
 
     return make_tuple(xValuesFiltered, yValuesFiltered, zValuesFiltered);
 }
-template tuple<Eigen::VectorXd, Eigen::VectorXd, Eigen::VectorXd> Utils::getRobustSizeFromPointCloud<pcl::PointXYZ>(const pcl::PointCloud<pcl::PointXYZ>::Ptr &);
+template tuple<Eigen::VectorXd, Eigen::VectorXd, Eigen::VectorXd> Utils::getRobustSizeFromPointCloud<pcl::PointXYZ>(const pcl::PointCloud<pcl::PointXYZ>::Ptr &,
+                                                                                                                    const float, const size_t);
 
 
 int Utils::getKneePoint(const Eigen::VectorXd &values, const float sensitivity, const uint8_t polyDeg)
@@ -403,11 +394,12 @@ bool Utils::checkRankSumTest(const pcl::PointCloud<pcl::PointXYZ>::Ptr &existing
         const double mean = numExisting * numIncoming / 2;
         const double stdDev = sqrt(numExisting * numIncoming * (numExisting + numIncoming + 1) / 12);
         const double zScore = (rankSum - mean) / stdDev;
-        if (fabs(zScore) > criticalValue)
-            return false;
+        // if (fabs(zScore) > criticalValue)
+        //     return false;
+        cumulativeZScore += zScore;
     }
-    // if (cumulativeZScore/3 > criticalValue)
-    //     return false;
+    if (cumulativeZScore > 7*criticalValue)
+        return false;
     return true;
 }
 

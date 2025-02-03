@@ -1,0 +1,4 @@
+0 default
+41 mug
+63 laptop
+73 book

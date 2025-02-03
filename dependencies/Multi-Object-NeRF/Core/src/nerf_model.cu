@@ -703,10 +703,15 @@ __global__ void GenerateRaysCDF(const uint32_t nRays,const uint32_t nCdfSampleNu
         //transform to [0,1]
         point = WarpPoint(point,Bbox);
 
-        // trilinear interpolation to get density
-        const int ix0 = floor((GRID_SIZE-1) * point.x());
-        const int iy0 = floor((GRID_SIZE-1) * point.y());
-        const int iz0 = floor((GRID_SIZE-1) * point.z());
+        int ix0 = floor((GRID_SIZE-1) * point.x());
+        int iy0 = floor((GRID_SIZE-1) * point.y());
+        int iz0 = floor((GRID_SIZE-1) * point.z());
+        
+        // need to clamp because of floating point errors
+        ix0 = max(0, min(ix0, GRID_SIZE - 1));
+        iy0 = max(0, min(iy0, GRID_SIZE - 1));
+        iz0 = max(0, min(iz0, GRID_SIZE - 1));
+        
         const int ix1 = std::min(ix0 + 1, GRID_SIZE - 1);
         const int iy1 = std::min(iy0 + 1, GRID_SIZE - 1);
         const int iz1 = std::min(iz0 + 1, GRID_SIZE - 1);
@@ -1500,7 +1505,6 @@ NeRF_Model::NeRF_Model(int id, int GPUid, const BoundingBox& BBox, const Eigen::
     mObjTow = ObjTow;
     mInstanceId = InstanceId;
     cudaSetDevice(mGPUid);
-    mNetworkConfig = ClassNetworkConfig;
     mDensityGrid.resize(GRID_SIZE*GRID_SIZE*GRID_SIZE);
     CUDA_CHECK_THROW(cudaStreamCreate(&mpTrainStream));
     CUDA_CHECK_THROW(cudaStreamCreate(&mpInferenceStream));
@@ -1516,7 +1520,7 @@ bool NeRF_Model::ReadNetworkConfig(const string config_path)
         return false;
     }
 	config = json::parse(file, nullptr, true, true);
-    ClassNetworkConfig = config;
+    mNetworkConfig = config;
     return true;
 }
 
@@ -1715,6 +1719,8 @@ void NeRF_Model::AllocateBatchWorkspace(cudaStream_t pStream,const uint32_t Padd
     mBatchMemory.Rays.resize(mnRaysPerBatch);
     mBatchMemory.RaysInstance.resize(mnRaysPerBatch);
     mBatchMemory.RandColors.resize(mnRaysPerBatch * 3);
+    mBatchMemory.cdf.resize(mnRaysPerBatch*mnCdfSampleNum);
+    mBatchMemory.sampledFromCDF.resize(mnRaysPerBatch*mnSampleNum);
     mLossMemory.resize(mnRaysPerBatch);
     mSumLossMemory.resize(16);
     mnPaddedOutWidth = PaddedOutputWidth;
@@ -1845,14 +1851,8 @@ void NeRF_Model::GenerateBatch(cudaStream_t pStream,std::shared_ptr<NeRF_Dataset
     else
     {
         // auto toc = std::chrono::high_resolution_clock::now();
-        // generate CDF for the sampled rays
-        tcnn::GPUMemoryArena::Allocation alloc;
-        auto scratch = tcnn::allocate_workspace_and_distribute<float, float>(pStream,&alloc,
-            mnRaysPerBatch*mnSampleNum,
-            mnRaysPerBatch*mnCdfSampleNum);
-        float* sampledFromCDF = std::get<0>(scratch);
-        float* cdf = std::get<1>(scratch);
 
+        // generate cdf
         tcnn::linear_kernel(GenerateRaysCDF,0,pStream,
             mnRaysPerBatch,
             mnCdfSampleNum,
@@ -1861,17 +1861,18 @@ void NeRF_Model::GenerateBatch(cudaStream_t pStream,std::shared_ptr<NeRF_Dataset
             mBoundingBox,
             mBatchMemory.Rays.data(),
             mDensityGrid.data(),
-            cdf
+            mBatchMemory.cdf.data()
             );
         CUDA_CHECK_THROW(cudaStreamSynchronize(pStream));
 
+        // sample from cdf
         tcnn::linear_kernel(SampleRandomFromCDF,0,pStream,
             mnRaysPerBatch,
             mnSampleNum,
             mnCdfSampleNum,
-            cdf,
+            mBatchMemory.cdf.data(),
             mBatchMemory.RandDt.data(),
-            sampledFromCDF
+            mBatchMemory.sampledFromCDF.data()
             );
         CUDA_CHECK_THROW(cudaStreamSynchronize(pStream));
 
@@ -1883,7 +1884,7 @@ void NeRF_Model::GenerateBatch(cudaStream_t pStream,std::shared_ptr<NeRF_Dataset
             mBatchMemory.Rays.data(),
             mBatchMemory.PointsInput.data(),
             mBatchMemory.SamplesDistances.data(),
-            sampledFromCDF
+            mBatchMemory.sampledFromCDF.data()
             );
         CUDA_CHECK_THROW(cudaStreamSynchronize(pStream));
 
@@ -2018,6 +2019,17 @@ void NeRF_Model::UpdateFrameIdAndBboxOnline(const std::vector<FrameIdAndBbox>& F
     CUDA_CHECK_THROW(cudaMemcpy(mFrameIdAndBboxMemory.data() + mnBbox, FrameIdBbox.data() + mnBbox, newnumBbox * sizeof(FrameIdAndBbox), cudaMemcpyHostToDevice));
     mnBbox += newnumBbox;
     CUDA_CHECK_THROW(cudaStreamSynchronize(cudaStreamPerThread));
+}
+
+void NeRF_Model::UpdateDensityGrid(cudaStream_t pStream)
+{
+    // assumes mbDensityLoaded is true
+    // update the density grid
+    Eigen::Vector3i res3i = Eigen::Vector3i::Constant(GRID_SIZE);
+    tcnn::GPUMemory<float> density = GetDensityOnGrid(res3i, mBoundingBox, pStream);
+    mDensityGrid.resize(GRID_SIZE*GRID_SIZE*GRID_SIZE);
+    CUDA_CHECK_THROW(cudaMemcpyAsync(mDensityGrid.data(), density.data(), GRID_SIZE*GRID_SIZE*GRID_SIZE*sizeof(float), cudaMemcpyDeviceToDevice, pStream));
+    CUDA_CHECK_THROW(cudaStreamSynchronize(pStream));
 }
 
 bool NeRF_Model::Train_Step(std::shared_ptr<nerf::NeRF_Dataset> pTrainData, const size_t itersPerStep)
@@ -2392,7 +2404,7 @@ void NeRF_Model::GenerateMesh(cudaStream_t pStream, MeshData& mMeshData, const s
 
     // copy to mDensityGrid
     if (copyDensity) {
-        cudaMemcpy(mDensityGrid.data(),density.data(),density.size()*sizeof(float),cudaMemcpyDeviceToDevice);
+        CUDA_CHECK_THROW(cudaMemcpyAsync(mDensityGrid.data(),density.data(),density.size()*sizeof(float),cudaMemcpyDeviceToDevice,pStream));
         CUDA_CHECK_THROW(cudaStreamSynchronize(pStream));
     }
     MarchingCubes(box,res3i,thresh,density,saveDensityPath,mMesh.verts,mMesh.indices,pStream);

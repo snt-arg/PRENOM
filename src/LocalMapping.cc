@@ -64,7 +64,6 @@ void LocalMapping::Run()
     {
         // Tracking will see that Local Mapping is busy
         SetAcceptKeyFrames(false);
-        
 
         // Check if there are keyframes in the queue
         if(CheckNewKeyFrames())
@@ -1224,15 +1223,15 @@ void LocalMapping::UpdateObjNeRF()
 
                 // align to canonical wherever possible
                 // if (cls == 41)
-                if (cls == 63 || cls == 41 || cls == 73 || cls == 58)
-                    pObj->AlignToCanonical(false, true);
+                // if (cls == 63 || cls == 41 || cls == 73 || cls == 58)
+                pObj->AlignToCanonical();
 
                 //NeRF Bbox attribute
                 Tow = pObj->mShape.mTobjw.to_homogeneous_matrix().cast<float>();
                 BBox.min = Eigen::Vector3f(-pObj->mShape.a1,-pObj->mShape.a2,-pObj->mShape.a3);
                 BBox.max = Eigen::Vector3f(pObj->mShape.a1,pObj->mShape.a2,pObj->mShape.a3);
 
-                size_t idx = mpNeRFManager->CreateNeRF(cls,Tow,BBox);
+                size_t idx = mpNeRFManager->CreateNeRF(cls,Tow,BBox, pObj->mConfig.isKnown);
                 
                 pObj->haveNeRF = true;
                 pObj->pNeRFIdx = idx;

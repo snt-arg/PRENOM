@@ -25,8 +25,9 @@ int Object_Map::mnEIFObsNumbers;
 bool Object_Map::MergeDifferentClass = false;
 
 
-Object_Map::Object_Map(Map* pMap, float tTest[][4]) : mbBad(false),mbFirstInit(true),mnObs(0),mpMap(pMap),mSumPointsPos(cv::Mat::zeros(3,1,CV_32F)),
-                                                  mTobjw(SE3Quat()),mpReplaced(static_cast<Object_Map*>(NULL))
+Object_Map::Object_Map(Map* pMap, ObjectConfig& objConfig, const float* priorDensity, const pcl::PointCloud<pcl::PointXYZ>::Ptr& priorCloud, float tTest[][4]) : 
+    mbBad(false),mbFirstInit(true),mnObs(0),mpMap(pMap), mSumPointsPos(cv::Mat::zeros(3,1,CV_32F)), mTobjw(SE3Quat()),
+    mpReplaced(static_cast<Object_Map*>(NULL)), mConfig(objConfig), mPriorDensity(priorDensity), mPriorModel(priorCloud)
 {
     mnId=nNextId++;
     mCloud = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>);
@@ -213,7 +214,7 @@ void Object_Map::EIFFilterOutlierCloud()
     
     const size_t cloudSize = mCloud->points.size();
 
-    if(mKeyFrameHistoryBbox.size() < 5 || cloudSize < 500)
+    if(mKeyFrameHistoryBbox.size() < 5 || cloudSize < mConfig.pointcloud.maxPoints/3)
         return;
     
     for (size_t i = 0; i < cloudSize; i++)
@@ -228,9 +229,6 @@ void Object_Map::EIFFilterOutlierCloud()
     auto t1 = std::chrono::system_clock::now();
 
 	EIF::EIForest<float, 3> forest;
-    
-    const double th = mfEIFthreshold;
-
 	if(!forest.Build(40, 12345, data, cloudSize / 2))
 		std::cerr << "Failed to build Isolation Forest.\n";
     
@@ -240,7 +238,7 @@ void Object_Map::EIFFilterOutlierCloud()
     
     pcl::PointCloud<pcl::PointXYZ>::Ptr newCloud(new pcl::PointCloud<pcl::PointXYZ>);
     for(size_t i = 0,iend = cloudSize;i<iend;i++)
-        if(anomaly_scores[i] < th)
+        if(anomaly_scores[i] < mConfig.pointcloudEIF.threshold)
             newCloud->push_back(mCloud->points[i]);
     mCloud = newCloud;
     auto t2 = std::chrono::system_clock::now();
@@ -387,12 +385,33 @@ void Object_Map::CalculateObjectPose(const Frame& CurrentFrame)
     unique_lock<mutex> lock(mMutexCloud);
     if (mCloud->empty())
         return;
-    tuple<Eigen::VectorXd, Eigen::VectorXd, Eigen::VectorXd> robustSize = Utils::getRobustSizeFromPointCloud<pcl::PointXYZ>(mCloud);
-    lock.unlock();
 
-    const Eigen::VectorXd robustX = get<0>(robustSize);
-    const Eigen::VectorXd robustY = get<1>(robustSize);
-    const Eigen::VectorXd robustZ = get<2>(robustSize);
+    Eigen::VectorXd robustX, robustY, robustZ;
+    if (mConfig.kneedleFilter.enabled)
+    {
+        const tuple<Eigen::VectorXd, Eigen::VectorXd, Eigen::VectorXd> robustSize = Utils::getRobustSizeFromPointCloud<pcl::PointXYZ>(mCloud, mConfig.kneedleFilter.sensitivity, mConfig.kneedleFilter.uncertainPoints);
+        robustX = get<0>(robustSize);
+        robustY = get<1>(robustSize);
+        robustZ = get<2>(robustSize);
+    }
+    else
+    {
+        const size_t dimSize = mCloud->points.size();
+        robustX = Eigen::VectorXd::Zero(dimSize);
+        robustY = Eigen::VectorXd::Zero(dimSize);
+        robustZ = Eigen::VectorXd::Zero(dimSize);
+        for (size_t i = 0; i < dimSize; i++)
+        {
+            robustX(i) = mCloud->points[i].x;
+            robustY(i) = mCloud->points[i].y;
+            robustZ(i) = mCloud->points[i].z;
+        }
+        sort(robustX.begin(), robustX.end());
+        sort(robustY.begin(), robustY.end());
+        sort(robustZ.begin(), robustZ.end());
+    }
+
+    lock.unlock();
 
     // get the size - assume it's the same for all axes
     const size_t dimSize = robustX.size();
@@ -763,17 +782,38 @@ void Object_Map::CalculateObjectShape(const bool removeOutliers)
     // lock1.unlock();
 
     // remove outliers
-    if (mCloud->points.size() > mnMaxCloudPoints/2)
-        Utils::pointcloudOutlierRemoval<pcl::PointXYZ>(mCloud, 50, 1.0);
-    EIFFilterOutlierCloud();
+    if (mConfig.outlierRemoval.enabled && mCloud->points.size() > mConfig.pointcloud.maxPoints/2)
+        Utils::pointcloudOutlierRemoval<pcl::PointXYZ>(mCloud, mConfig.outlierRemoval.minNeighbors*2, mConfig.outlierRemoval.stdDev);
+    if (mConfig.pointcloudEIF.enabled)
+        EIFFilterOutlierCloud();
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr objCloud(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::transformPointCloud(*mCloud,*objCloud,Tow);
 
-    tuple<Eigen::VectorXd, Eigen::VectorXd, Eigen::VectorXd> robustSize = Utils::getRobustSizeFromPointCloud<pcl::PointXYZ>(objCloud);
-    const Eigen::VectorXd robustX = get<0>(robustSize);
-    const Eigen::VectorXd robustY = get<1>(robustSize);
-    const Eigen::VectorXd robustZ = get<2>(robustSize);
+    Eigen::VectorXd robustX, robustY, robustZ;
+    if (mConfig.kneedleFilter.enabled)
+    {
+        const tuple<Eigen::VectorXd, Eigen::VectorXd, Eigen::VectorXd> robustSize = Utils::getRobustSizeFromPointCloud<pcl::PointXYZ>(objCloud, mConfig.kneedleFilter.sensitivity, mConfig.kneedleFilter.uncertainPoints);
+        robustX = get<0>(robustSize);
+        robustY = get<1>(robustSize);
+        robustZ = get<2>(robustSize);
+    }
+    else
+    {
+        const size_t dimSize = objCloud->points.size();
+        robustX = Eigen::VectorXd::Zero(dimSize);
+        robustY = Eigen::VectorXd::Zero(dimSize);
+        robustZ = Eigen::VectorXd::Zero(dimSize);
+        for (size_t i = 0; i < dimSize; i++)
+        {
+            robustX(i) = objCloud->points[i].x;
+            robustY(i) = objCloud->points[i].y;
+            robustZ(i) = objCloud->points[i].z;
+        }
+        sort(robustX.begin(), robustX.end());
+        sort(robustY.begin(), robustY.end());
+        sort(robustZ.begin(), robustZ.end());
+    }
     
     // get the size - assume it's the same for all axes
     const size_t dimSize = robustX.size();
@@ -1076,7 +1116,7 @@ void Object_Map::InsertHistoryBboxAndTwc(const Frame& CurrentFrame)
 
 }
 
-void Object_Map::AlignToCanonical(const bool loadDensity, const bool refineICP)
+void Object_Map::AlignToCanonical()
 {
     // time this function
     auto start = std::chrono::high_resolution_clock::now();
@@ -1084,190 +1124,155 @@ void Object_Map::AlignToCanonical(const bool loadDensity, const bool refineICP)
     // calculate object shape again
     CalculateObjectShape(true);
 
+    if (!mConfig.isKnown)
+    {
+        // just expand bbox and return because the prior model is not known
+        const float expandFactor = 1 + mConfig.bbox.expand;
+        mShape.a1 *= expandFactor;
+        mShape.a2 *= expandFactor;
+        mShape.a3 *= expandFactor;
+        mShape.a1 += mConfig.bbox.incrementX;
+        mShape.a2 += mConfig.bbox.incrementY;
+        mShape.a3 += mConfig.bbox.incrementZ;
+        return;
+    }
+
     // get the state of the object
-    // unique_lock<mutex> lock(mMutexCloud);
     const Eigen::Matrix4d Tow = mFrozenTow;
     vector<Eigen::Vector3d> vPos;
     for (const auto& point : mFrozenCloud->points)
         vPos.push_back(Eigen::Vector3d(point.x, point.y, point.z));
     const size_t numCloudPoints = vPos.size();
-    // lock.unlock();    
 
-    // common
-    float metric_resolution, normalized_resolution;
-
-    // density-based
-    float densities[GRID_SIZE_SQ*GRID_SIZE];
-    float* densityGrid = densities;
+    // common variables
+    float metric_resolution = mConfig.align.metricResolution; // for model-based
+    float normalized_resolution = mConfig.align.normalizedResolution; // for density-based
 
     // object-based
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::PointCloud<pcl::PointXYZ>::Ptr sampledCloud(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::octree::OctreePointCloud<pcl::PointXYZ> tree(100);
 
-    // load the density grid or the object point cloud
-    if (loadDensity)
+    // set the resolution based on alignment strategy
+    if (mConfig.align.isDensityBased)
     {
-        std::string filepath = "models/laptop_density.ply";
-        if (mnClass == 41)
-            filepath = "models/mug_density.ply";
-        else if (mnClass == 73 || mnClass == 58)
-            filepath = "models/book_density.ply";
-
-        normalized_resolution = 0.20;
+        // use normalized resolution for density-based alignment
         metric_resolution = normalized_resolution * pow(mShape.a1 * mShape.a2 * mShape.a3 * 8, 1.0/3.0);
-
-        // load the density grid
-        std::ifstream file(filepath);
-        if (!file) {
-            std::cerr << "Error opening density file" << std::endl;
-            return;
-        }
-
-        std::string line;
-        bool hasHeaderEnded = false;
-
-        while (std::getline(file, line)) {
-            if (line == "end_header") {
-                hasHeaderEnded = true;
-                break;
-            }
-        }
-
-        // read the density values
-        size_t index = 0;
-        while (std::getline(file, line)) {
-            std::istringstream iss(line);
-            float density;
-            if (!(iss >> density >> density >> density >> density)) {
-                break;
-            }
-            densities[index++] = density;
-        }
     }
     else
     {
-        std::string filepath = "models/laptop.ply";
-        if (mnClass == 41)
-            filepath = "models/mug.ply";
-        else if (mnClass == 73 || mnClass == 58)
-            filepath = "models/book.ply";
-
-        metric_resolution = 0.01;
+        // use metric resolution for model-based alignment
         normalized_resolution = metric_resolution / pow(mShape.a1 * mShape.a2 * mShape.a3 * 8, 1.0/3.0);
-        cout << "Normalized resolution: " << normalized_resolution << endl;
-        // load the object point cloud
-        pcl::io::loadPLYFile(filepath, *cloud);
-        cloud->width = cloud->points.size();
-        cloud->height = 1;
-        cloud->is_dense = false;
-        cloud->points.resize(cloud->width);
 
         // get a sampled version of the meta mesh for completion score
-        if (mnClass == 73)
+        if (mConfig.symmetry.isReflectional)
         {
-            pcl::copyPointCloud(*cloud, *sampledCloud);
+            pcl::copyPointCloud(*mPriorModel, *sampledCloud);
             Utils::pointcloudFarthestPointSampling<pcl::PointXYZ>(sampledCloud, numCloudPoints);
         }
 
-        // make a octree to check the occupancy of the object
+        // make an octree to check the occupancy of the object
         tree.setResolution(normalized_resolution);
-        tree.setInputCloud(cloud);
+        tree.setInputCloud(mPriorModel);
         tree.addPointsFromInputCloud();
     }
 
-    // sample angles uniformly
-    std::vector<double> angles;
-    const size_t numAngles = 180;
-    for (int i = 0; i < numAngles; i++)
-        angles.push_back((i * 360.0/numAngles - 180) / 180.0 * M_PI);
-    // const size_t numAngles = angles.size();
-    int scores[numAngles];
+    // align the object to the canonical pose if it is not a symmetric object
+    Eigen::Matrix4d coarseTow = Tow;
+    if (!mConfig.symmetry.isRotational)
+    {
+        // sample angles uniformly
+        std::vector<double> angles;
+        const size_t numAngles = mConfig.align.numSampleAngles;
+        for (int i = 0; i < numAngles; i++)
+            angles.push_back((i * 360.0/numAngles - 180) / 180.0 * M_PI);
+        int scores[numAngles];
 
-    pcl::PointCloud<pcl::PointXYZ>::Ptr object(new pcl::PointCloud<pcl::PointXYZ>);
-    for(int i = 0; i < numAngles; i++)
-    {   
-        // Determine the new object pose and extent
-        Eigen::Matrix3d Rno = Converter::eulerAnglesToMatrix(angles[i]);
-        Eigen::Matrix4d Tno = Eigen::Matrix4d::Identity();
-        Tno.block(0,0,3,3) = Rno;
-        Eigen::Matrix4d Tnw = Tno * Tow;
-        Tnw.block(0,3,3,1) = Eigen::Vector3d::Zero();
+        pcl::PointCloud<pcl::PointXYZ>::Ptr object(new pcl::PointCloud<pcl::PointXYZ>);
+        for(int i = 0; i < numAngles; i++)
+        {   
+            // Determine the new object pose and extent
+            Eigen::Matrix3d Rno = Converter::eulerAnglesToMatrix(angles[i]);
+            Eigen::Matrix4d Tno = Eigen::Matrix4d::Identity();
+            Tno.block(0,0,3,3) = Rno;
+            Eigen::Matrix4d Tnw = Tno * Tow;
+            Tnw.block(0,3,3,1) = Eigen::Vector3d::Zero();
 
-        // get the bbox size
-        const auto sizeTrans = GetSizeTransFromTransform(vPos, Tnw);
-        const Eigen::Vector3d newBboxMax = sizeTrans.first;
-        const Eigen::Vector3d newBboxMin = -newBboxMax;
-        Tnw.block(0,3,3,1) = sizeTrans.second;
+            // get the bbox size
+            const auto sizeTrans = GetSizeTransFromTransform(vPos, Tnw);
+            const Eigen::Vector3d newBboxMax = sizeTrans.first;
+            const Eigen::Vector3d newBboxMin = -newBboxMax;
+            Tnw.block(0,3,3,1) = sizeTrans.second;
 
-        // transform the point cloud to the object coordinate space
-        object->clear();
-        for(const auto& pos : vPos)
-        {
-            Eigen::Vector3d newPos = Tnw.block(0,0,3,3) * pos + Tnw.block(0,3,3,1);
-            newPos = (newPos - newBboxMin).cwiseQuotient(newBboxMax - newBboxMin);
-            if (newPos(0) < 0 || newPos(0) > 1 || newPos(1) < 0 || newPos(1) > 1 || newPos(2) < 0 || newPos(2) > 1)
+            // transform the point cloud to the object coordinate space
+            object->clear();
+            for(const auto& pos : vPos)
             {
-                cout << "Point outside the bounding box" << endl;
-                continue;
+                Eigen::Vector3d newPos = Tnw.block(0,0,3,3) * pos + Tnw.block(0,3,3,1);
+                newPos = (newPos - newBboxMin).cwiseQuotient(newBboxMax - newBboxMin);
+                if (newPos(0) < 0 || newPos(0) > 1 || newPos(1) < 0 || newPos(1) > 1 || newPos(2) < 0 || newPos(2) > 1)
+                {
+                    cout << "Point outside the bounding box" << endl;
+                    continue;
+                }
+                object->emplace_back(newPos(0),newPos(1),newPos(2));
             }
-            object->emplace_back(newPos(0),newPos(1),newPos(2));
+
+            // compute the score
+            if (mConfig.align.isDensityBased)
+                scores[i] = ComputeDensityScore(object);
+            else
+            {
+                scores[i] = ComputeOccupancyScoreOctree(tree, object);
+                // also compute the completion for some classes with dense normalized meshes
+                if (mConfig.symmetry.isReflectional)
+                {
+                    pcl::octree::OctreePointCloud<pcl::PointXYZ> objectTree(normalized_resolution);
+                    objectTree.setInputCloud(object);
+                    objectTree.addPointsFromInputCloud();
+                    scores[i] += ComputeOccupancyScoreOctree(objectTree, sampledCloud);
+                }
+            }
         }
 
-        // compute the score
-        if (loadDensity)
-            scores[i] = ComputeDensityScore(densityGrid, object);
+        // // [Debug] find the best alignment
+        // std::cout << "All scores: " << std::endl;
+        // for(int i = 0; i < numAngles; i++)
+        //     std::cout << scores[i] << std::endl;
+
+        double bestAngle = 0;
+        if (!mConfig.align.polyFit)
+        {
+            int best = 0;
+            for(int i = 1; i < numAngles; i++)
+            {
+                if(scores[i] > scores[best])
+                    best = i;
+            }
+            bestAngle = angles[best];
+        }
         else
         {
-            scores[i] = ComputeOccupancyScoreOctree(tree, object);
-            // also compute the completion for some classes with dense normalized meshes
-            if (mnClass == 73)
+            // fit a quadratic to the scores
+            Eigen::VectorXd eAngles(numAngles);
+            Eigen::VectorXd eScores(numAngles);
+            for(int i = 0; i < numAngles; i++)
             {
-                pcl::octree::OctreePointCloud<pcl::PointXYZ> objectTree(normalized_resolution);
-                objectTree.setInputCloud(object);
-                objectTree.addPointsFromInputCloud();
-                scores[i] += ComputeOccupancyScoreOctree(objectTree, sampledCloud);
+                eAngles(i) = angles[i];
+                eScores(i) = static_cast<double>(scores[i]);
             }
+            PolyFit polyFit(eAngles, eScores, 2);
+            bestAngle = polyFit.getExtrema();
         }
+        cout << "Best angle chosen for class:  " << mnClass << " " << bestAngle << " " << bestAngle * 180.0 / M_PI << endl;
+
+        // compute the new object pose and extent
+        Eigen::Matrix3d Rno = Converter::eulerAnglesToMatrix(bestAngle);
+        Eigen::Matrix4d Tno = Eigen::Matrix4d::Identity();
+        Tno.block(0,0,3,3) = Rno;
+        coarseTow = Tno * Tow;
     }
 
-    // // find the best alignment
-    // std::cout << "All scores: " << std::endl;
-    // for(int i = 0; i < numAngles; i++)
-    //     std::cout << scores[i] << std::endl;
-
-    double bestAngle = 0;
-    if (true)
-    {
-        int best = 0;
-        for(int i = 1; i < numAngles; i++)
-        {
-            if(scores[i] > scores[best])
-                best = i;
-        }
-        bestAngle = angles[best];
-    }
-    // fitting a quadratic to the scores
-    else
-    {
-        // fit a quadratic to the scores
-        Eigen::VectorXd eAngles(numAngles);
-        Eigen::VectorXd eScores(numAngles);
-        for(int i = 0; i < numAngles; i++)
-        {
-            eAngles(i) = angles[i];
-            eScores(i) = static_cast<double>(scores[i]);
-        }
-        PolyFit polyFit(eAngles, eScores, 2);
-        bestAngle = polyFit.getExtrema();
-    }
-    cout << "Best angle chosen for class:  " << mnClass << " " << bestAngle << " " << bestAngle * 180.0 / M_PI << endl;
-
-    // compute the new object pose and extent
-    Eigen::Matrix3d Rno = Converter::eulerAnglesToMatrix(bestAngle);
-    Eigen::Matrix4d Tno = Eigen::Matrix4d::Identity();
-    Tno.block(0,0,3,3) = Rno;
-    Eigen::Matrix4d coarseTow = Tno * Tow;
+    // get the bbox size
     coarseTow.block(0,3,3,1) = Eigen::Vector3d::Zero();
     auto sizeTrans = GetSizeTransFromTransform(vPos, coarseTow);
     const Eigen::Vector3d coarseBboxMax = sizeTrans.first;
@@ -1279,13 +1284,9 @@ void Object_Map::AlignToCanonical(const bool loadDensity, const bool refineICP)
     std::cout << "Alignment took " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << " us" << std::endl;
 
     // once a coarse alignment has been found, refine the alignment using ICP
-    // const Eigen::Matrix4d coarseTow = results[best].first;
-    // const Eigen::Vector3d coarseBboxMax = results[best].second;
-    // const Eigen::Vector3d coarseBboxMin = -coarseBboxMax;
     Eigen::Matrix4d fineTow = coarseTow;
     Eigen::Vector3d fineBboxMax = coarseBboxMax;
-
-    if (refineICP)
+    if (mConfig.icp.enabled)
     {
         pcl::PointCloud<pcl::PointXYZ>::Ptr object_aligned(new pcl::PointCloud<pcl::PointXYZ>);
         pcl::PointCloud<pcl::PointXYZ>::Ptr prior_aligned(new pcl::PointCloud<pcl::PointXYZ>);
@@ -1296,7 +1297,7 @@ void Object_Map::AlignToCanonical(const bool loadDensity, const bool refineICP)
         }
         
         // the canonical prior object in the object frame
-        for(const auto& point : cloud->points)
+        for(const auto& point : mPriorModel->points)
         {
             Eigen::Vector3d pos = {point.x, point.y, point.z};
             pos = pos.cwiseProduct(coarseBboxMax - coarseBboxMin) + coarseBboxMin;
@@ -1310,8 +1311,7 @@ void Object_Map::AlignToCanonical(const bool loadDensity, const bool refineICP)
         prior_tree.addPointsFromInputCloud();
         std::cout << "Prior accuracy: " << ComputeOccupancyScoreOctree(prior_tree, object_aligned) << std::endl;
 
-        // the ICP algorithm - constrained to be 4 dof - translation and rotation about the z-axis
-        // [TODO] - parameterize the ICP algorithm
+        // the ICP algorithm - constrained to be 4 dof - 3 dof translation and rotation about the z-axis
         pcl::IterativeClosestPointNonLinear<pcl::PointXYZ, pcl::PointXYZ> icp;
         pcl::registration::WarpPointRigid4D<pcl::PointXYZ, pcl::PointXYZ>::Ptr warp_fcn 
             (new pcl::registration::WarpPointRigid4D<pcl::PointXYZ, pcl::PointXYZ>);
@@ -1319,7 +1319,7 @@ void Object_Map::AlignToCanonical(const bool loadDensity, const bool refineICP)
             (new pcl::registration::TransformationEstimationLM<pcl::PointXYZ, pcl::PointXYZ>);
         te->setWarpFunction (warp_fcn);
         icp.setTransformationEstimation(te);
-        icp.setMaximumIterations(150);
+        icp.setMaximumIterations(mConfig.icp.maxIterations);
         icp.setInputSource(object_aligned);
         icp.setInputTarget(prior_aligned);
 
@@ -1331,15 +1331,14 @@ void Object_Map::AlignToCanonical(const bool loadDensity, const bool refineICP)
         std::cout << "ICP took " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << " us" << std::endl;
 
         // if transformation is too large, reject the alignment
-        // check translation against the diagonal of the bounding box (should be < 10%)
-        // check rotation to be lower than 30 degrees of yaw
+        // check translation against the diagonal of the bounding box and rotation
         Eigen::Matrix4d refinement = icp.getFinalTransformation().cast<double>();
-        if(refinement.block(0,3,3,1).norm() > 0.15 * (coarseBboxMax - coarseBboxMin).norm())
+        if(refinement.block(0,3,3,1).norm() > mConfig.icp.maxTransPercent * (coarseBboxMax - coarseBboxMin).norm())
         {
             std::cout << "ICP output rejected because of large translation" << std::endl;
             refinement = Eigen::Matrix4d::Identity();
         }
-        else if (refinement(0,0) < 0.866)
+        else if (refinement(0,0) < mConfig.icp.minRotCos)
         {
             std::cout << "ICP output rejected because of large rotation" << std::endl;
             refinement = Eigen::Matrix4d::Identity();
@@ -1375,12 +1374,11 @@ int Object_Map::ComputeOccupancyScoreOctree(const pcl::octree::OctreePointCloud<
     return score;
 }
 
-
-int Object_Map::ComputeDensityScore(const float* densityGrid, const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) const
+int Object_Map::ComputeDensityScore(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) const
 {
     omp_set_dynamic(0);
     double energy = 0;
-    #pragma omp parallel for reduction(+:energy) num_threads(6)
+    #pragma omp parallel for reduction(+:energy) num_threads(8)
     for (size_t i = 0; i < cloud->points.size(); ++i)
     {
         const auto& point = cloud->points[i];
@@ -1397,16 +1395,15 @@ int Object_Map::ComputeDensityScore(const float* densityGrid, const pcl::PointCl
         const float xd = GRID_SIZE * point.x - ix0;
         const float yd = GRID_SIZE * point.y - iy0;
         const float zd = GRID_SIZE * point.z - iz0;
-        const float c00 = densityGrid[ix0 + GRID_SIZE * iy0 + GRID_SIZE_SQ * iz0] * (1 - xd) + densityGrid[ix1 + GRID_SIZE * iy0 + GRID_SIZE_SQ * iz0] * xd;
-        const float c10 = densityGrid[ix0 + GRID_SIZE * iy1 + GRID_SIZE_SQ * iz0] * (1 - xd) + densityGrid[ix1 + GRID_SIZE * iy1 + GRID_SIZE_SQ * iz0] * xd;
-        const float c01 = densityGrid[ix0 + GRID_SIZE * iy0 + GRID_SIZE_SQ * iz1] * (1 - xd) + densityGrid[ix1 + GRID_SIZE * iy0 + GRID_SIZE_SQ * iz1] * xd;
-        const float c11 = densityGrid[ix0 + GRID_SIZE * iy1 + GRID_SIZE_SQ * iz1] * (1 - xd) + densityGrid[ix1 + GRID_SIZE * iy1 + GRID_SIZE_SQ * iz1] * xd;
+        const float c00 = mPriorDensity[ix0 + GRID_SIZE * iy0 + GRID_SIZE_SQ * iz0] * (1 - xd) + mPriorDensity[ix1 + GRID_SIZE * iy0 + GRID_SIZE_SQ * iz0] * xd;
+        const float c10 = mPriorDensity[ix0 + GRID_SIZE * iy1 + GRID_SIZE_SQ * iz0] * (1 - xd) + mPriorDensity[ix1 + GRID_SIZE * iy1 + GRID_SIZE_SQ * iz0] * xd;
+        const float c01 = mPriorDensity[ix0 + GRID_SIZE * iy0 + GRID_SIZE_SQ * iz1] * (1 - xd) + mPriorDensity[ix1 + GRID_SIZE * iy0 + GRID_SIZE_SQ * iz1] * xd;
+        const float c11 = mPriorDensity[ix0 + GRID_SIZE * iy1 + GRID_SIZE_SQ * iz1] * (1 - xd) + mPriorDensity[ix1 + GRID_SIZE * iy1 + GRID_SIZE_SQ * iz1] * xd;
         const float c0 = c00 * (1 - yd) + c10 * yd;
         const float c1 = c01 * (1 - yd) + c11 * yd;
         const float c = c0 * (1 - zd) + c1 * zd;
         energy += c;
     }
-
     return static_cast<int>(energy);
 }
 
@@ -1427,10 +1424,13 @@ pair<Eigen::Vector3d, Eigen::Vector3d> Object_Map::GetSizeTransFromTransform(con
     const Eigen::Vector3d minVals = {xValues.minCoeff(), yValues.minCoeff(), zValues.minCoeff()};
     Eigen::Vector3d size = maxVals - minVals;
     size = size.cwiseAbs();
-    bboxMax = size * 1.15/ 2; // normally 10% padding, but since occlusion is a problem, 15%
+    size *= (1 + mConfig.bbox.expand);
+    bboxMax = size/2.0;
 
     // extra padding in the z direction as the objects are attached to something
-    bboxMax(2) + 0.0025;
+    bboxMax(0) += mConfig.bbox.incrementX;
+    bboxMax(1) += mConfig.bbox.incrementY;
+    bboxMax(2) += mConfig.bbox.incrementZ;
 
     // also return the translation as the center of the bounding box
     Eigen::Vector3d translation = -(maxVals + minVals) / 2;
@@ -1444,78 +1444,86 @@ void Object_Map::AddToCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud, co
     // if (cloud->points.size() == 0)
         return;
 
+    const size_t minCloudPoints = mConfig.pointcloud.minPoints;
+    const size_t maxCloudPoints = mConfig.pointcloud.maxPoints;
+
     // auto start = std::chrono::high_resolution_clock::now();
     // downsample the cloud - only get the most recurring points
-    pcl::PointCloud<pcl::PointXYZ>::Ptr downsampled = Utils::pointcloudDownsample<pcl::PointXYZ>(cloud, mnVoxelLeafSize, mnMinPointsPerVoxel);
-    if (downsampled->points.size() == 0)
+    pcl::PointCloud<pcl::PointXYZ>::Ptr downsampled;
+    downsampled = Utils::pointcloudDownsample<pcl::PointXYZ>(cloud,
+                                                             mConfig.downsample.voxelSize,
+                                                             mConfig.downsample.minPointsPerVoxel);
+    if (downsampled->points.size() < minCloudPoints)
         return;
-    downsampled = Utils::pointcloudOutlierRemoval<pcl::PointXYZ>(downsampled, mnNeighborPoints, mnStdDevThresh);
-    if (downsampled->points.size() < mnMinCloudPoints)
-        return;
+    
+    if (mConfig.outlierRemoval.enabled)
+    {
+        downsampled = Utils::pointcloudOutlierRemoval<pcl::PointXYZ>(downsampled, 
+                                                                 mConfig.outlierRemoval.minNeighbors,
+                                                                 mConfig.outlierRemoval.stdDev);
+        if (downsampled->points.size() < minCloudPoints)
+            return;
+    }
 
     // Check for clusters
-    vector<pcl::PointIndices> clusterIndices;
-    Utils::pointcloudEuclideanClustering(downsampled, clusterIndices, mnClusterTolerance);
-    if (clusterIndices.size() > 1)
+    if (mConfig.clustering.enabled)
     {
-        cout << "Multiple clusters detected" << endl;
-        cout << "Number of clusters: " << clusterIndices.size() << endl;
-        
-        // add clusters that are big enough and pass the t-test for their centroid
-        pcl::PointCloud<pcl::PointXYZ>::Ptr remainder(new pcl::PointCloud<pcl::PointXYZ>);
-        for (const auto& indices : clusterIndices)
+        vector<pcl::PointIndices> clusterIndices;
+        Utils::pointcloudEuclideanClustering(downsampled, clusterIndices, mConfig.clustering.tolerance);
+        if (clusterIndices.size() > 1)
         {
-            const size_t clusterSize = indices.indices.size();
-            if (clusterSize > mnMinCloudPoints)
+            cout << "Multiple clusters detected" << endl;
+            cout << "Number of clusters: " << clusterIndices.size() << endl;
+            
+            // add clusters that are big enough and pass tests if they are enabled
+            pcl::PointCloud<pcl::PointXYZ>::Ptr remainder(new pcl::PointCloud<pcl::PointXYZ>);
+            for (const auto& indices : clusterIndices)
             {
-                
-                // // transform the cluster to the global frame
-                // pcl::PointCloud<pcl::PointXYZ>::Ptr tempCloud(new pcl::PointCloud<pcl::PointXYZ>);
-                // for (const auto& index : indices.indices)
-                //     tempCloud->points.push_back(downsampled->points[index]);
-                // pcl::transformPointCloud(*tempCloud, *tempCloud, Twc);
-
-                // // single sample t-test on the centroid
-                // if (mvCloudCentroidHistory.size() >= mnMinHistorySize)
-                // {
-                //     pcl::PointCloud<pcl::PointXYZ>::Ptr tempTempCloud(new pcl::PointCloud<pcl::PointXYZ>);
-                //     for (const auto& point : tempCloud->points)
-                //         tempTempCloud->points.push_back(point);
-                //     for (const auto& point : mCloud->points)
-                //         tempTempCloud->points.push_back(point);
-                //     Utils::pointcloudFarthestPointSampling<pcl::PointXYZ>(tempTempCloud, mnMaxCloudPoints);
-                //     if (!CentroidTTest(tempTempCloud, false))
-                //         continue;
-                // }
-                // else
-                // {
-                //     // push it to a queue to check later
-                //     mvCloudClustersToCheck.push_back(tempCloud);
-                //     continue;
-                // }
-                
-                // if (mCloud->points.size() > mnMinCloudPoints)
-                // {
-                //     // transform the cluster to the global frame
-                //     pcl::PointCloud<pcl::PointXYZ>::Ptr tempCloud(new pcl::PointCloud<pcl::PointXYZ>);
-                //     for (const auto& index : indices.indices)
-                //         tempCloud->points.push_back(downsampled->points[index]);
-                //     pcl::transformPointCloud(*tempCloud, *tempCloud, Twc);
-                //     for (size_t i=0; i<mCloud->points.size(); i++)
-                //         tempCloud->points.push_back(mCloud->points[i]);
-                //     Utils::pointcloudFarthestPointSampling<pcl::PointXYZ>(tempCloud, mnMaxCloudPoints);
-                //     if (!Utils::checkRankSumTest(mCloud, tempCloud))
-                //         continue;
-                // }
-
-                for (const auto& index : indices.indices)
-                    remainder->points.push_back(downsampled->points[index]);
+                const size_t clusterSize = indices.indices.size();
+                if (clusterSize > minCloudPoints)
+                {
+                    pcl::PointCloud<pcl::PointXYZ>::Ptr tempCloud(new pcl::PointCloud<pcl::PointXYZ>);
+                    if (mConfig.centroidTTest.enabled || mConfig.rankSumTest.enabled)
+                    {
+                        // transform the cluster to the global frame
+                        for (const auto& index : indices.indices)
+                            tempCloud->points.push_back(downsampled->points[index]);
+                        pcl::transformPointCloud(*tempCloud, *tempCloud, Twc);
+                    }
+                    
+                    if (mConfig.centroidTTest.enabled)
+                    {
+                        // push it to a queue to check later
+                        mvCloudClustersToCheck.push_back(tempCloud);
+                        continue;
+                    }
+                    
+                    if (mConfig.rankSumTest.enabled)
+                    {
+                        if (mCloud->points.size() > minCloudPoints && mnObs > mConfig.rankSumTest.minHistorySize)
+                        {
+                            // transform the cluster to the global frame
+                            pcl::PointCloud<pcl::PointXYZ>::Ptr tempCloud(new pcl::PointCloud<pcl::PointXYZ>);
+                            for (const auto& index : indices.indices)
+                                tempCloud->points.push_back(downsampled->points[index]);
+                            pcl::transformPointCloud(*tempCloud, *tempCloud, Twc);
+                            for (size_t i=0; i<mCloud->points.size(); i++)
+                                tempCloud->points.push_back(mCloud->points[i]);
+                            Utils::pointcloudFarthestPointSampling<pcl::PointXYZ>(tempCloud, maxCloudPoints);
+                            if (!Utils::checkRankSumTest(mCloud, tempCloud))
+                                continue;
+                        }
+                    }
+                    
+                    for (const auto& index : indices.indices)
+                        remainder->points.push_back(downsampled->points[index]);
+                }
             }
+            downsampled = remainder;
         }
-        downsampled = remainder;
+        if (downsampled->points.size() < minCloudPoints)
+            return;
     }
-    if (downsampled->points.size() < mnMinCloudPoints)
-        return;
 
     // transform to get the cloud in global
     pcl::transformPointCloud(*downsampled, *downsampled, Twc);
@@ -1526,65 +1534,58 @@ void Object_Map::AddToCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud, co
         tempCloud->points.push_back(point);
     for (const auto& point : mCloud->points)
         tempCloud->points.push_back(point);
-    Utils::pointcloudFarthestPointSampling<pcl::PointXYZ>(tempCloud, mnMaxCloudPoints);
+    Utils::pointcloudFarthestPointSampling<pcl::PointXYZ>(tempCloud, mConfig.pointcloud.maxPoints);
 
-    // // Wilcoxn Rank Sum Test
-    // if (mCloud->points.size() > mnMinCloudPoints && mnObs > 10)
-    // {
-    //     if (!Utils::checkRankSumTest(mCloud, tempCloud))
-    //     {
-    //         cout << "Wilcoxn Rank Sum Test failed" << endl;
-    //         return;
-    //     }
-    // }
+    // Wilcoxn Rank Sum Test
+    if (mConfig.rankSumTest.enabled && mCloud->points.size() > minCloudPoints && mnObs > mConfig.rankSumTest.minHistorySize)
+    {
+        if (!Utils::checkRankSumTest(mCloud, tempCloud))
+        {
+            cout << "Wilcoxn Rank Sum Test failed" << endl;
+            return;
+        }
+    }
     
     // // t-test on the centroid 
-    // if (mvCloudCentroidHistory.size() >= mnMinHistorySize)
-    // {
-    //     if (!CentroidTTest(tempCloud, true))
-    //         return;
-    // }
+    if (mConfig.centroidTTest.enabled)
+    {
+        if (mvCloudCentroidHistory.size() >= mConfig.centroidTTest.minHistorySize)
+        {
+            if (!CentroidTTest(tempCloud))
+                return;
 
-    // // check the clusters that were not added because of not enough history
-    // if (mvCloudCentroidHistory.size() >= mnMinHistorySize && mvCloudClustersToCheck.size() > 0)
-    // {
-    //     bool somePassed = false;
-    //     for (const auto& cluster : mvCloudClustersToCheck)
-    //     {
-    //         pcl::PointCloud<pcl::PointXYZ>::Ptr tempTempCloud(new pcl::PointCloud<pcl::PointXYZ>);
-    //         for (const auto& point : cluster->points)
-    //             tempTempCloud->points.push_back(point);
-    //         for (const auto& point : tempCloud->points)
-    //             tempTempCloud->points.push_back(point);
-    //         Utils::pointcloudFarthestPointSampling<pcl::PointXYZ>(tempTempCloud, mnMaxCloudPoints);
-    //         if (!CentroidTTest(tempTempCloud, true))
-    //             continue;
-    //         somePassed = true;
-    //         for (const auto& point : cluster->points)
-    //             tempCloud->points.push_back(point);
-    //     }
-    //     mvCloudClustersToCheck.clear();
-    //     if (somePassed)
-    //         Utils::pointcloudFarthestPointSampling<pcl::PointXYZ>(tempCloud, mnMaxCloudPoints);
-    // }
+            if (mvCloudClustersToCheck.size() > 0)
+            {
+                bool somePassed = false;
+                for (const auto& cluster : mvCloudClustersToCheck)
+                {
+                    pcl::PointCloud<pcl::PointXYZ>::Ptr tempTempCloud(new pcl::PointCloud<pcl::PointXYZ>);
+                    for (const auto& point : cluster->points)
+                        tempTempCloud->points.push_back(point);
+                    for (const auto& point : tempCloud->points)
+                        tempTempCloud->points.push_back(point);
+                    Utils::pointcloudFarthestPointSampling<pcl::PointXYZ>(tempTempCloud, maxCloudPoints);
+                    if (!CentroidTTest(tempTempCloud, true))
+                        continue;
+                    somePassed = true;
+                    for (const auto& point : cluster->points)
+                        tempCloud->points.push_back(point);
+                }
+                mvCloudClustersToCheck.clear();
+                if (somePassed)
+                    Utils::pointcloudFarthestPointSampling<pcl::PointXYZ>(tempCloud, maxCloudPoints);
+            }
+        }
 
-    // // add the cloud to the object cloud
-    // for (const auto& point : downsampled->points)
-    //     mCloud->points.push_back(point);
+        // add the centroid to the history
+        Eigen::Vector3d centroid = Eigen::Vector3d::Zero();
+        for (const auto& point : tempCloud->points)
+            centroid += Eigen::Vector3d(point.x, point.y, point.z);
+        centroid /= tempCloud->points.size();
+        AddCloudCentroidToHistory(centroid);
+    }
 
-    // if (mCloud->points.size() > mnMaxCloudPoints)
-    //     // do farthest point sampling to maintain a fixed number of points
-    //     // [TODO] - the number should depend on the class if known
-    //     Utils::pointcloudFarthestPointSampling<pcl::PointXYZ>(mCloud, mnMaxCloudPoints);
-
-    // // add the centroid to the history
-    // Eigen::Vector3d centroid = Eigen::Vector3d::Zero();
-    // for (const auto& point : tempCloud->points)
-    //     centroid += Eigen::Vector3d(point.x, point.y, point.z);
-    // centroid /= tempCloud->points.size();
-    // AddCloudCentroidToHistory(centroid);
-
-    // everything passed, add the cloud
+    // everything passed, replace the cloud
     mCloud = tempCloud;
 
     // auto end = std::chrono::high_resolution_clock::now();
@@ -1644,6 +1645,8 @@ bool Object_Map::CentroidTTest(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
         return false;
     }
     cout << "Cluser is good" << endl;
+    if (addToHistory)
+        AddCloudCentroidToHistory(centroid);
     return true;
 }
 
