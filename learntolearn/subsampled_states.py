@@ -45,6 +45,7 @@ SUBSAMPLED_STATES = {
         "n_neurons": (16, 32, 64),
         "n_hidden_layers": (1,),
         "density_lambda": (0.080, 0.130),
+        "depth_lambda": (0.70, 1.50)
     },
     "display": { # final
         "inner_lr": (0.0193, 0.0250),
