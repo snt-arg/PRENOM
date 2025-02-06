@@ -11,6 +11,15 @@
 
 
 SUBSAMPLED_STATES = {
+    "car": {
+        "inner_lr": (0.003, 0.015),
+        "log2_hashmap_size": (14, 15, 16, ),
+        "per_level_scale": (1.36, 1.96),
+        "n_neurons": (16, 32, 64, 128),
+        "n_hidden_layers": (1, 2, ),
+        "density_lambda": (0.001, 0.200),
+        "depth_lambda": (0.500, 2.00),
+    },
     "chair": {
         "inner_lr": (0.0120, 0.0225),
         "log2_hashmap_size": (14, 15, 16, ),
