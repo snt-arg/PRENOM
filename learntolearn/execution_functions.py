@@ -19,8 +19,8 @@ TRAINING_DIR = "/home/saadejazz/RO-MAP-NG/dependencies/Multi-Object-NeRF"
 OUTPUT_DIR = "/home/saadejazz/momvml_output/"
 
 # other constants
-LAMBDA_MODEL_SIZE = 0.10
-LAMBDA_TRAIN_TIME = 0.55
+LAMBDA_MODEL_SIZE = 0.001
+LAMBDA_TRAIN_TIME = 4.00
 
 # for evaluation
 NUM_SAMPLED_POINTS = 2**16
@@ -48,7 +48,10 @@ def run_single_meta_iteration(
     log2_hashmap_size,
     per_level_scale,
     n_neurons,
-    n_hidden_layers
+    n_hidden_layers,
+    density_lambda,
+    depth_lambda,
+    depth_prescale
 ):
     """
     Run a single meta iteration.
@@ -87,6 +90,9 @@ def run_single_meta_iteration(
     new_base["encoding"]["per_level_scale"] = per_level_scale
     new_base["network"]["n_neurons"] = n_neurons
     new_base["network"]["n_hidden_layers"] = n_hidden_layers
+    new_base["lambdas"]["density"] = density_lambda
+    new_base["lambdas"]["depth"] = depth_lambda
+    new_base["misc"]["depth_prescale"] = depth_prescale
     
     # save the new json file
     base_path = os.path.join(output_dir, f'base_{identifier}.json')
@@ -160,6 +166,9 @@ def evaluate_run(
     per_level_scale,
     n_neurons,
     n_hidden_layers,
+    density_lambda,
+    depth_lambda,
+    depth_prescale,
     load_meta_model = True,
     inner_loops_to_test = [80, 160, 240],
     use_depths = [True, False],
@@ -183,6 +192,9 @@ def evaluate_run(
     new_base["encoding"]["per_level_scale"] = per_level_scale
     new_base["network"]["n_neurons"] = n_neurons
     new_base["network"]["n_hidden_layers"] = n_hidden_layers
+    new_base["lambdas"]["density"] = density_lambda
+    new_base["lambdas"]["depth"] = depth_lambda
+    new_base["misc"]["depth_prescale"] = depth_prescale
     
     # save the new json file
     base_path = os.path.join(output_dir, f'base_{identifier}.json')
@@ -207,7 +219,7 @@ def evaluate_run(
         
         "visualize": False,
         
-        "n_steps": 1,
+        "n_iters_per_step": 50,
         
         "meta_n_iters_per_step": 1,
         "meta_n_steps": 1,
@@ -229,7 +241,7 @@ def evaluate_run(
         depth_completions = []
         
         for inner_loops in inner_loops_to_test:
-            new_system["n_iters_per_step"] = inner_loops
+            new_system["n_steps"] = int(inner_loops/50)
             with open(system_path, 'w') as file:
                 json.dump(new_system, file)
             
@@ -239,10 +251,12 @@ def evaluate_run(
                 out = single_train_call(base_path, system_path, data_dir)
                 # scrape the time from the output
                 out = out.decode("utf-8")
-                time = out.partition("train_time: ")[2].partition(" ")[0]
-                print("Total time: ", time)
+                lines = out.split("\n")
+                for line in lines:
+                    if "train_time: " in line:
+                        total_time += float(line.partition("train_time: ")[2].partition(" ")[0])
+                print("Total time: ", total_time)
                 sys.stdout.flush()
-                total_time += float(time)/1000.0
                 
                 # total_time += time.time() - tic
                 
@@ -312,7 +326,7 @@ def evaluate_run(
     print("Model size: ", model_size)
     
     total_iterations = np.sum(inner_loops_to_test) * len(use_depths) * len(test_sets)
-    time_per_iteration = (total_time * 1000) / total_iterations # in ms
+    time_per_iteration = total_time / total_iterations # in ms
     print("Time per iteration: ", time_per_iteration)
     
     second_objective = LAMBDA_MODEL_SIZE * model_size + LAMBDA_TRAIN_TIME * time_per_iteration

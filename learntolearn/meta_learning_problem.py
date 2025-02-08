@@ -14,16 +14,20 @@ class MultiObjectiveMixedMetaLearn(ElementwiseProblem):
         
         vars = {
             # meta learning parameters
-            "num_meta_loops": Integer(bounds=(25, 50)),
-            "num_inner_iterations": Integer(bounds=(500, 1000)),
+            "num_meta_loops": Integer(bounds=(35, 100)),
+            "num_inner_iterations": Integer(bounds=(500, 1600)),
             "meta_lr": Real(bounds=(1e-3, 2e-1)), # most important parameter
             "meta_lr_decay": Real(bounds=(0.90, 1.00)),
+            "density_lambda": Real(bounds=tuple(self.subsampled_states["density_lambda"])),
+            "depth_lambda": Real(bounds=tuple(self.subsampled_states["depth_lambda"])),
+            "depth_prescale": Real(bounds=(1.0, 15.00)),
             
             # inner learning parameters - ranges already optimised in the learning problem
             # fine-tuning parameters in the meta learning problem
             "inner_lr": Real(bounds=tuple(self.subsampled_states["inner_lr"])),
             "log2_hashmap_size": Choice(options=tuple(self.subsampled_states["log2_hashmap_size"])),
-            "per_level_scale": Choice(options=list(self.subsampled_states["per_level_scale"])),
+            # "per_level_scale": Choice(options=list(self.subsampled_states["per_level_scale"])),
+            "per_level_scale": Real(bounds=tuple(self.subsampled_states["per_level_scale"])),
             "n_neurons": Choice(options=list(self.subsampled_states["n_neurons"])),
             "n_hidden_layers": Choice(options=list(self.subsampled_states["n_hidden_layers"]))
         }
@@ -41,7 +45,10 @@ class MultiObjectiveMixedMetaLearn(ElementwiseProblem):
             int(X["log2_hashmap_size"]),
             float(X["per_level_scale"]),
             int(X["n_neurons"]),
-            int(X["n_hidden_layers"])
+            int(X["n_hidden_layers"]),
+            float(X["density_lambda"]),
+            float(X["depth_lambda"]),
+            float(X["depth_prescale"])
         )
         
         # evaluate the run
@@ -53,8 +60,11 @@ class MultiObjectiveMixedMetaLearn(ElementwiseProblem):
             float(X["per_level_scale"]),
             int(X["n_neurons"]),
             int(X["n_hidden_layers"]),
+            float(X["density_lambda"]),
+            float(X["depth_lambda"]),
+            float(X["depth_prescale"]),
             load_meta_model = True,
-            inner_loops_to_test = [25, 60, 125, 250],
+            inner_loops_to_test = [100, 250, 500, 1000], # multiple of 50, otherwise will cut
             use_depths = [True, False],
             evaluate_folder = "test"
         ))
