@@ -1104,11 +1104,12 @@ void LocalMapping::MergeOverlapObjects()
     }
 }
 
-void LocalMapping::InsertKeyFrameAndImg(KeyFrame *pKF,const cv::Mat& img,const cv::Mat& Instance)
+void LocalMapping::InsertKeyFrameAndImg(KeyFrame *pKF,const cv::Mat& img,const cv::Mat& Instance, const cv::Mat& imgDepth)
 {
     unique_lock<mutex> lock(mNewDataNeRF);
     mlNewKeyFramesNeRF.push_back(pKF);
     mlNewImgNeRF.push_back(img.clone());
+    mlNewImgDepthNeRF.push_back(imgDepth.clone());
     mlNewInstanceNeRF.push_back(Instance.clone());
 
 }
@@ -1152,11 +1153,13 @@ void LocalMapping::NewDataToGPU()
     KeyFrame* pKF;
     cv::Mat img;
     cv::Mat instance;
+    cv::Mat depth_img;
     {
         unique_lock<mutex> lock(mNewDataNeRF);
         pKF = mlNewKeyFramesNeRF.front();
         img = mlNewImgNeRF.front();
         instance = mlNewInstanceNeRF.front();
+        depth_img = mlNewImgDepthNeRF.front();
         mlNewKeyFramesNeRF.pop_front();
         mlNewImgNeRF.pop_front();
         mlNewInstanceNeRF.pop_front();
@@ -1165,11 +1168,11 @@ void LocalMapping::NewDataToGPU()
     mvNeRFDataKeyFrames.push_back(pKF);
     Eigen::Matrix4f pose = Converter::toMatrix4f(pKF->GetPoseInverse());
     string timestamp = to_string(pKF->mTimeStamp);
-    cv::Mat depth_img = cv::Mat::zeros(img.rows, img.cols,CV_32FC1);
     
-    //Generate sparse depth maps
-    if(mpNeRFManager->mbUseSparseDepth)
-        pKF->GenerateSparseDepthImg(depth_img);
+    // cv::Mat depth_img = cv::Mat::zeros(img.rows, img.cols,CV_32FC1);
+    // //Generate sparse depth maps
+    // if(mpNeRFManager->mbUseSparseDepth)
+    //     pKF->GenerateSparseDepthImg(depth_img);
    
     mpNeRFManager->NewFrameToDataset(mCurImgId,timestamp,img,instance,depth_img,pose);
     //cout<<"KF_Id: "<<pKF->mnId<<" mCurImgId: "<<mCurImgId<<endl;

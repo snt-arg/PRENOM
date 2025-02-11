@@ -985,7 +985,7 @@ void ObjectManager::Run()
 
         // to push to the Nerf manager after the keyframe is optimized
         if(!mvNewOrChangedObj.empty() && pKF != NULL)
-            mpLocalMapper->InsertKeyFrameAndImg(pKF, imColor, imgInstance);
+            mpLocalMapper->InsertKeyFrameAndImg(pKF, imColor, imgInstance, imgDepth);
 
         //update last frame
         mpLastFrame = pFrame;

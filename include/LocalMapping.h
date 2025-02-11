@@ -67,7 +67,7 @@ public:
 
     //object-nerf-slam
     void SetNeRFManager(nerf::NerfManagerOnline* pNeRFManager);
-    void InsertKeyFrameAndImg(KeyFrame *pKF,const cv::Mat& img,const cv::Mat& Instance);
+    void InsertKeyFrameAndImg(KeyFrame *pKF,const cv::Mat& img,const cv::Mat& Instance, const cv::Mat& imgDepth);
     void NewDataToGPU();
     void UpdateObjNeRF();
     void GetUpdateBbox(Object_Map* pObj, vector<nerf::FrameIdAndBbox>& vFrameBbox);
@@ -105,6 +105,7 @@ protected:
     std::list<KeyFrame*> mlNewKeyFramesNeRF;
     std::list<cv::Mat> mlNewImgNeRF;
     std::list<cv::Mat> mlNewInstanceNeRF;
+    std::list<cv::Mat> mlNewImgDepthNeRF;
     unsigned int mCurImgId = 0;
     std::vector<KeyFrame*> mvNeRFDataKeyFrames;
 

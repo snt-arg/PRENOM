@@ -226,8 +226,6 @@ void Object_Map::EIFFilterOutlierCloud()
         data.push_back(temp);
     }
 
-    auto t1 = std::chrono::system_clock::now();
-
 	EIF::EIForest<float, 3> forest;
 	if(!forest.Build(40, 12345, data, cloudSize / 2))
 		std::cerr << "Failed to build Isolation Forest.\n";
@@ -241,8 +239,6 @@ void Object_Map::EIFFilterOutlierCloud()
         if(anomaly_scores[i] < mConfig.pointcloudEIF.threshold)
             newCloud->push_back(mCloud->points[i]);
     mCloud = newCloud;
-    auto t2 = std::chrono::system_clock::now();
-    cout << "Time: " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << endl;
 }
 
 
