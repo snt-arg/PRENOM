@@ -31,7 +31,7 @@ checkpoints
 
 # misc
 backup
-scratch.py
+scratch*
 
 # containers
 *.sif
@@ -41,7 +41,25 @@ scratch.py
 room/
 scene1/
 scene2/
+office/
 *.ply
+
+# videos 
+*.mp4
+
+# zips
+*.zip
+
+# test data
+test*
+
+# documents
+*.pdf
+*.tex
+*.csv
+
+# exclude the priors in cookbook
+!cookbook/**/*.ply
 
 # python specific
 *.pyc

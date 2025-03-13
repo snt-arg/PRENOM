@@ -27,8 +27,8 @@
     },
 
     "pointcloud": {
-        "max_points": 1000,
-        "min_points": 80
+        "max_points": 1500,
+        "min_points": 25
     },
 
     "downsample": {
@@ -38,13 +38,13 @@
 
     "clustering": {
         "enabled": true,
-        "tolerance": 0.10
+        "tolerance": 0.15
     },
 
     "outlier_removal": {
         "enabled": true,
-        "std_dev": 1.0,
-        "min_neighbors": 25
+        "std_dev": 1.5,
+        "min_neighbors": 30
     },
 
     "pointcloud_eif": {
@@ -53,12 +53,12 @@
     },
 
     "centroid_t_test": {
-        "enabled": false,
-        "min_history_size": 50
+        "enabled": true,
+        "min_history_size": 30
     },
 
     "rank_sum_test": {
-        "enabled": false,
+        "enabled": true,
         "min_history_size": 25
     },
 

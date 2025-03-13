@@ -1,4 +1,10 @@
 0 default
+32 ball
 41 mug
+56 chair
+58 plant
+62 display
 63 laptop
+64 mouse
+66 keyboard
 73 book

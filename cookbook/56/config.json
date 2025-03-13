@@ -1,0 +1,70 @@
+{
+    "align": {
+        "is_density_based": true,
+        "poly_fit": false,
+        "metric_resolution": 0.052,
+        "normalized_resolution": 0.01,
+        "num_sample_angles": 180
+    },
+
+    "icp": {
+        "enabled": false,
+        "max_iterations": 150,
+        "max_trans_percent": 0.15,
+        "min_rot_cos": 0.866
+    },
+    
+    "symmetry": {
+        "is_rotational": false,
+        "is_reflectional": false
+    },
+
+    "bbox": {
+        "expand": 0.10,
+        "increment_x": 0.00,
+        "increment_y": 0.00,
+        "increment_z": 0.001
+    },
+
+    "pointcloud": {
+        "max_points": 1000,
+        "min_points": 25
+    },
+
+    "downsample": {
+        "voxel_size": 0.01,
+        "min_points_per_voxel": 5
+    },
+
+    "clustering": {
+        "enabled": true,
+        "tolerance": 0.30
+    },
+
+    "outlier_removal": {
+        "enabled": true,
+        "std_dev": 1.0,
+        "min_neighbors": 40
+    },
+
+    "pointcloud_eif": {
+        "enabled": true,
+        "threshold": 0.70
+    },
+
+    "centroid_t_test": {
+        "enabled": false,
+        "min_history_size": 50
+    },
+
+    "rank_sum_test": {
+        "enabled": true,
+        "min_history_size": 25
+    },
+
+    "kneedle_filter": {
+        "enabled": false,
+        "sensitivity": 15,
+        "uncertain_points": 25
+    }
+}

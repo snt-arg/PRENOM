@@ -1,0 +1,46 @@
+{
+	"loss": {
+		"otype": "Huber"
+	},
+	"optimizer": {
+		"otype": "Ema",
+		"decay": 0.95,
+		"nested": {
+			"otype": "ExponentialDecay",
+			"decay_start": 20000,
+			"decay_interval": 10000,
+			"decay_base": 0.33,
+			"nested": {
+				"otype": "Adam",
+				"learning_rate": 0.016478801409673,
+				"beta1": 0.9,
+				"beta2": 0.99,
+				"epsilon": 1e-15,
+				"l2_reg": 1e-6
+			}
+		}
+	},
+	"encoding": {
+		"otype": "HashGrid",
+		"n_levels": 16,
+		"n_features_per_level": 2,
+		"log2_hashmap_size": 14,
+		"base_resolution": 16,
+		"per_level_scale": 1.4157668686062883
+	},
+	"network": {
+		"otype": "FullyFusedMLP",
+		"activation": "ReLU",
+		"output_activation": "None",
+		"n_neurons": 16,
+		"n_hidden_layers": 1
+	},
+	"lambdas": {
+		"density": 0.04239419390402817,
+		"depth": 1.9463793090888988
+	},
+	"misc": {
+		"depth_prescale": 8.9650381975497910
+	}
+}
+
