@@ -762,7 +762,17 @@ void Tracking::StereoInitialization()
         
         if(haveGTpose)
         {   
-            //Only the rotation information is used to make the world coordinates parallel to the ground plane 
+            // //Only the rotation information is used to make the world coordinates parallel to the ground plane 
+            // cout<<"GTiw: \n"<<GTiw<<endl;
+            // g2o::SE3Quat SE3GroundtruthPose_iw(GTiw);
+            // cv::Mat Tiw = Converter::toCvMat(SE3GroundtruthPose_iw);
+            // cv::Mat Riw = Tiw.rowRange(0,3).colRange(0,3);
+            // cv::Mat Rwi = Riw.t();
+            // cv::Mat Twi = cv::Mat::eye(4,4,CV_32F);
+            // Rwi.copyTo(Twi.rowRange(0,3).colRange(0,3));
+            // mCurrentFrame.SetPose(mCurrentFrame.mTcw*Twi);
+
+            // use both rotation and translation information to make the world coordinates parallel to the ground plane
             cout<<"GTiw: \n"<<GTiw<<endl;
             g2o::SE3Quat SE3GroundtruthPose_iw(GTiw);
             cv::Mat Tiw = Converter::toCvMat(SE3GroundtruthPose_iw);
@@ -770,6 +780,9 @@ void Tracking::StereoInitialization()
             cv::Mat Rwi = Riw.t();
             cv::Mat Twi = cv::Mat::eye(4,4,CV_32F);
             Rwi.copyTo(Twi.rowRange(0,3).colRange(0,3));
+            cv::Mat tiw = Tiw.rowRange(0,3).col(3);
+            cv::Mat twi = -Rwi*tiw;
+            twi.copyTo(Twi.rowRange(0,3).col(3));
             mCurrentFrame.SetPose(mCurrentFrame.mTcw*Twi);
         }
         else
