@@ -160,6 +160,11 @@ Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer,
 
     LocalMapping::mfAngleChange = fSettings["NeRF.AngleChange"];
     cout<<"AngleChange: "<<LocalMapping::mfAngleChange<<endl;
+
+    LocalMapping::mnRestBetweenNeRFs = fSettings["NeRF.RestBetweenNeRFs"];
+    cout<<"RestBetweenNeRFs: "<<LocalMapping::mnRestBetweenNeRFs<<endl;
+
+    mnTaskEveryNFrame = fSettings["TaskEveryNFrames"];
 }
 
 void Tracking::SetLocalMapper(LocalMapping *pLocalMapper)
@@ -663,7 +668,7 @@ void Tracking::Track()
             // Check if we need to insert a new keyframe
             if(NeedNewKeyFrame())
                 CreateNewKeyFrame();
-            else
+            else if (mnTaskEveryNFrame > 0 && mCurrentFrame.mnId % mnTaskEveryNFrame == 0)
             {
                 Frame* pCurrentFrame = new Frame(mCurrentFrame);
                 mpObjectManager->AddTaskToQueue(

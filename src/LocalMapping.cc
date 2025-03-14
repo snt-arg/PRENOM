@@ -1,20 +1,20 @@
 /*
-* This file is part of ORB-SLAM2.
-*
-* Copyright (C) 2014-2016 Raúl Mur-Artal <raulmur at unizar dot es> (University of Zaragoza)
-* For more information see <https://github.com/raulmur/ORB_SLAM2>
-*
+ * This file is part of ORB-SLAM2.
  *
-* Modification: SQ-SLAM
-* Version: 1.0
-* Created: 05/23/2022
-* Author: Xiao Han
+ * Copyright (C) 2014-2016 Raúl Mur-Artal <raulmur at unizar dot es> (University of Zaragoza)
+ * For more information see <https://github.com/raulmur/ORB_SLAM2>
+ *
+ *
+ * Modification: SQ-SLAM
+ * Version: 1.0
+ * Created: 05/23/2022
+ * Author: Xiao Han
  *
  * Modification: PRENOM
  * Version: 1.0
  * Created: 12/25/2024
  * Author: Saad Ejaz
-*/
+ */
 
 
 #include "LocalMapping.h"
@@ -1164,20 +1164,20 @@ void LocalMapping::NewDataToGPU()
         mlNewKeyFramesNeRF.pop_front();
         mlNewImgNeRF.pop_front();
         mlNewInstanceNeRF.pop_front();
+        mlNewImgDepthNeRF.pop_front();
     }
-    
+
     mvNeRFDataKeyFrames.push_back(pKF);
     Eigen::Matrix4f pose = Converter::toMatrix4f(pKF->GetPoseInverse());
     string timestamp = to_string(pKF->mTimeStamp);
     
+    // [TODO] - Add sparse depth maps for monocular - need to fix monocular
     // cv::Mat depth_img = cv::Mat::zeros(img.rows, img.cols,CV_32FC1);
     // //Generate sparse depth maps
     // if(mpNeRFManager->mbUseSparseDepth)
     //     pKF->GenerateSparseDepthImg(depth_img);
    
     mpNeRFManager->NewFrameToDataset(mCurImgId,timestamp,img,instance,depth_img,pose);
-    //cout<<"KF_Id: "<<pKF->mnId<<" mCurImgId: "<<mCurImgId<<endl;
-    
     mCurImgId += 1;
 }
 
@@ -1218,6 +1218,15 @@ void LocalMapping::UpdateObjNeRF()
         //No nerf created
         if(!pObj->haveNeRF)
         {   
+            // add rest period before creating NeRF to not overload the system
+            // [TODO] - this should be a separate thread, but is still useful as too many mutexes
+            if (mnKFsSinceLastNeRF < mnRestBetweenNeRFs)
+            {
+                mnKFsSinceLastNeRF++;
+                continue;
+            }
+            mnKFsSinceLastNeRF = 0;
+
             if(angle > 2 * mfAngleChange)
             {
                 //create 
@@ -1226,8 +1235,6 @@ void LocalMapping::UpdateObjNeRF()
                 nerf::BoundingBox BBox;
 
                 // align to canonical wherever possible
-                // if (cls == 41)
-                // if (cls == 63 || cls == 41 || cls == 73 || cls == 58)
                 pObj->AlignToCanonical();
 
                 //NeRF Bbox attribute
@@ -1235,19 +1242,24 @@ void LocalMapping::UpdateObjNeRF()
                 BBox.min = Eigen::Vector3f(-pObj->mShape.a1,-pObj->mShape.a2,-pObj->mShape.a3);
                 BBox.max = Eigen::Vector3f(pObj->mShape.a1,pObj->mShape.a2,pObj->mShape.a3);
 
+                // if bbox is too small, skip creating NeRF
+                if (BBox.max.norm() < 0.06) {
+                    pObj->haveNeRF = true;
+                    continue;
+                }
+
                 size_t idx = mpNeRFManager->CreateNeRF(cls,Tow,BBox, pObj->mConfig.isKnown);
                 
                 pObj->haveNeRF = true;
                 pObj->pNeRFIdx = idx;
                 pObj->mTow_NeRF = Tow;
-                // pObj->BBox_NeRF = (cls == 41 || cls == 73) ? BBox.max * 1.2f : BBox.max * 1.1f;
                 pObj->BBox_NeRF = BBox.max;
 
                 //2D bbox for sampling rays
                 vector<nerf::FrameIdAndBbox> vFrameBbox;
                 GetUpdateBbox(pObj,vFrameBbox);
                 pObj->mKeyFrameHistoryBbox_Temp.clear();
-                mpNeRFManager->UpdateNeRFBbox(idx,vFrameBbox,3);    
+                mpNeRFManager->UpdateNeRFBbox(idx,vFrameBbox,2);    
 
                 cout<<"Create NeRF ... Id: "<<idx<<" Init Angle: "<<angle<<" Bbox Sizes: "<<vFrameBbox.size()<<endl;
                 pObj->twc_xy_last = pObj->twc_xy;
@@ -1256,18 +1268,17 @@ void LocalMapping::UpdateObjNeRF()
             {
                 continue;
             }
-        
         }
         else
         {
-            //Update 2D Bbox for sampling rays
+            //Update 3D Bbox for sampling rays
             if(angle > mfAngleChange)
             {
                 //update
                 vector<nerf::FrameIdAndBbox> vFrameBbox;
                 GetUpdateBbox(pObj,vFrameBbox);
                 pObj->mKeyFrameHistoryBbox_Temp.clear();
-                mpNeRFManager->UpdateNeRFBbox(pObj->pNeRFIdx,vFrameBbox,3);
+                mpNeRFManager->UpdateNeRFBbox(pObj->pNeRFIdx,vFrameBbox,2);
 
                 pObj->twc_xy_last = pObj->twc_xy;
             }
