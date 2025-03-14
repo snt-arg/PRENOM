@@ -140,7 +140,8 @@ public:
     tcnn::GPUMemory<float> mLossMemory;
     tcnn::GPUMemory<float> mSumLossMemory;
     tcnn::GPUMemory<float> mDensityGrid;
-    bool mbDensityLoaded = false;
+    bool mbLoadDensity = false;
+    std::atomic<bool> mbDensityLoaded;
     float mfPerTrainLoss = 0;
     vector<float> mHisLoss;
 
@@ -204,6 +205,8 @@ public:
     //Mesh
     MeshState mMesh;
 
+    // mutex for updating the density grid
+    std::mutex mDensityGridMutex;
 };
 
 }

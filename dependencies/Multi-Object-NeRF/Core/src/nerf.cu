@@ -219,7 +219,7 @@ void NeRF::TrainOffline(const int nSteps, const int nItersPerStep)
     auto allocate_time = std::chrono::steady_clock::now();
     cout<<"allocate_time: "<<std::chrono::duration_cast<std::chrono::milliseconds>(allocate_time - start).count()<<std::endl;
 
-    const bool densityLoaded = mpModel->mbDensityLoaded;
+    const bool densityLoaded = mpModel->mbLoadDensity;
 
     // generation of mesh is needed for point sampling in rays
     if (mbVisualize || densityLoaded)
@@ -327,9 +327,8 @@ bool NeRF::CreateModelOnline(bool useSparseDepth, int Iterations, const int clas
             exit(0);
         }
         // generate first time mesh - also loads densities for probabilistic sampling
-        mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"", mpModel->mbDensityLoaded);
+        mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"", mpModel->mbLoadDensity);
         mpModel->TransCPUMesh(mpModel->mpInferenceStream,mCPUMeshData);
-        // mpModel->UpdateDensityGrid(mpModel->mpTrainStream);
     }
 
     return true;

@@ -1506,6 +1506,7 @@ NeRF_Model::NeRF_Model(int id, int GPUid, const BoundingBox& BBox, const Eigen::
     mInstanceId = InstanceId;
     cudaSetDevice(mGPUid);
     mDensityGrid.resize(GRID_SIZE*GRID_SIZE*GRID_SIZE);
+    mbDensityLoaded.store(false);
     CUDA_CHECK_THROW(cudaStreamCreate(&mpTrainStream));
     CUDA_CHECK_THROW(cudaStreamCreate(&mpInferenceStream));
 }
@@ -1620,7 +1621,7 @@ bool NeRF_Model::LoadModel(const string path, const bool loadMeta)
 		std::cout << "Exception while loading model: " << e.what() << std::endl;
         return false;
 	}
-    mbDensityLoaded = true;
+    mbLoadDensity = true;
     return true;
 }
 
@@ -1831,7 +1832,7 @@ void NeRF_Model::GenerateBatch(cudaStream_t pStream,std::shared_ptr<NeRF_Dataset
     curandGenerateUniform(mGen,mBatchMemory.RandDt.data(),mnRaysPerBatch * mnSampleNum);
     CUDA_CHECK_THROW(cudaStreamSynchronize(pStream));
 
-    if (!mbDensityLoaded)
+    if (!mbDensityLoaded.load())
     {   
         // auto tic = std::chrono::high_resolution_clock::now();
         tcnn::linear_kernel(GenerateInputPoints,0,pStream,
@@ -1851,7 +1852,8 @@ void NeRF_Model::GenerateBatch(cudaStream_t pStream,std::shared_ptr<NeRF_Dataset
     else
     {
         // auto toc = std::chrono::high_resolution_clock::now();
-
+        {
+            std::unique_lock<std::mutex> lock(mDensityGridMutex);
         // generate cdf
         tcnn::linear_kernel(GenerateRaysCDF,0,pStream,
             mnRaysPerBatch,
@@ -1864,7 +1866,8 @@ void NeRF_Model::GenerateBatch(cudaStream_t pStream,std::shared_ptr<NeRF_Dataset
             mBatchMemory.cdf.data()
             );
         CUDA_CHECK_THROW(cudaStreamSynchronize(pStream));
-
+            lock.unlock();
+        }
         // sample from cdf
         tcnn::linear_kernel(SampleRandomFromCDF,0,pStream,
             mnRaysPerBatch,
@@ -2023,12 +2026,12 @@ void NeRF_Model::UpdateFrameIdAndBboxOnline(const std::vector<FrameIdAndBbox>& F
 
 void NeRF_Model::UpdateDensityGrid(cudaStream_t pStream)
 {
-    // assumes mbDensityLoaded is true
+    // assumes mbLoadDensity is true
     // update the density grid
     Eigen::Vector3i res3i = Eigen::Vector3i::Constant(GRID_SIZE);
     tcnn::GPUMemory<float> density = GetDensityOnGrid(res3i, mBoundingBox, pStream);
     mDensityGrid.resize(GRID_SIZE*GRID_SIZE*GRID_SIZE);
-    CUDA_CHECK_THROW(cudaMemcpyAsync(mDensityGrid.data(), density.data(), GRID_SIZE*GRID_SIZE*GRID_SIZE*sizeof(float), cudaMemcpyDeviceToDevice, pStream));
+    CUDA_CHECK_THROW(cudaMemcpy(mDensityGrid.data(), density.data(), GRID_SIZE*GRID_SIZE*GRID_SIZE*sizeof(float), cudaMemcpyDeviceToDevice));
     CUDA_CHECK_THROW(cudaStreamSynchronize(pStream));
 }
 
@@ -2404,9 +2407,13 @@ void NeRF_Model::GenerateMesh(cudaStream_t pStream, MeshData& mMeshData, const s
 
     // copy to mDensityGrid
     if (copyDensity) {
-        CUDA_CHECK_THROW(cudaMemcpyAsync(mDensityGrid.data(),density.data(),density.size()*sizeof(float),cudaMemcpyDeviceToDevice,pStream));
-        CUDA_CHECK_THROW(cudaStreamSynchronize(pStream));
+        std::unique_lock<std::mutex> lock(mDensityGridMutex);
+        CUDA_CHECK_THROW(cudaMemcpy(mDensityGrid.data(),density.data(),density.size()*sizeof(float),cudaMemcpyDeviceToDevice));
+        CUDA_CHECK_THROW(cudaStreamSynchronize(cudaStreamPerThread));
+        mbDensityLoaded.store(true);
+        lock.unlock();
     }
+
     MarchingCubes(box,res3i,thresh,density,saveDensityPath,mMesh.verts,mMesh.indices,pStream);
     compute_mesh_1ring(mMesh.verts, mMesh.indices, mMesh.verts_smoothed, mMesh.vert_normals,pStream);
     compute_mesh_vertex_colors(box,pStream);
