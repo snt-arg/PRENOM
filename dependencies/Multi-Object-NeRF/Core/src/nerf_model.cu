@@ -588,6 +588,10 @@ __global__ void GenerateInputPointsDensitySampling(const uint32_t nRays,const ui
         point = o + t * d;
         //transform to [0,1]
         point = WarpPoint(point,Bbox);
+
+        // clamp to [0,1]
+        point = point.cwiseMax(Eigen::Vector3f::Zero()).cwiseMin(Eigen::Vector3f::Ones());
+
         //printf("x: %f %f %f\n",point.x(),point.y(),point.z());
         PointsInput[n*3] = point.x();
         PointsInput[n*3+1] = point.y();
@@ -595,12 +599,6 @@ __global__ void GenerateInputPointsDensitySampling(const uint32_t nRays,const ui
         SamplesDistances[n] = t;
     }
 
-    // // print the sampledFromCDF array
-    // printf("For ray %d, the sampledFromCDF array is:\n", i);
-    // for (int n = 0; n < nSampleNum; n++)
-    // {
-    //     printf("%f ", sampledFromCDF[i*nSampleNum+n]);
-    // }
 }
 
 __global__ void SampleRandomFromCDF(const uint32_t nRays,const uint32_t nSampleNum,const uint32_t nCdfSampleNum,
@@ -614,11 +612,11 @@ __global__ void SampleRandomFromCDF(const uint32_t nRays,const uint32_t nSampleN
     cdf += i * nCdfSampleNum;
 
     int left, right, mid;
-    float random_value;
+    float randomValue;
     for (int n=0; n<nSampleNum; n++)
     {
         // generate random number
-        random_value = randomInput[n];
+        randomValue = randomInput[n];
     
         // do a binary search to find the index
         left = 0;
@@ -626,7 +624,7 @@ __global__ void SampleRandomFromCDF(const uint32_t nRays,const uint32_t nSampleN
         while (left < right)
         {
             mid = (left + right)/2;
-            if (random_value > cdf[mid])
+            if (randomValue > cdf[mid])
                 left = mid + 1;
             else
                 right = mid;
@@ -635,9 +633,9 @@ __global__ void SampleRandomFromCDF(const uint32_t nRays,const uint32_t nSampleN
 
         // interpolate to get the x value
         if (left == right) // only possible if both are 0
-            randomResult[n] = random_value / cdf[0];
+            randomResult[n] = randomValue / cdf[0];
         else
-            randomResult[n] = float(left) + (random_value - cdf[left]) / (cdf[left+1] - cdf[left]);
+            randomResult[n] = float(left) + (randomValue - cdf[left]) / (cdf[left+1] - cdf[left]);
 
         // scale to fix disparity between cdf and expected number of samples
         randomResult[n] *= float(nSampleNum)/nCdfSampleNum;
@@ -687,10 +685,11 @@ __global__ void GenerateRaysCDF(const uint32_t nRays,const uint32_t nCdfSampleNu
     
     Eigen::Vector3f point;
     float T = 1.0f;
-    const float EPS = 1e-4f;
+    float EPS = 5e-4/dt; // [Note] - this is a hack to prevent numerical instability
+    // [TODO] - figure out why the algorithm is sensitive to EPS and whether this is something to optimize
     for(int n=0; n<nCdfSampleNum; n++)
     {
-        if (T < EPS)
+        if (T < 1e-4)
         {
             for (int m=n; m<nCdfSampleNum; m++)
                 cdf[m] = 0.0f;
@@ -731,8 +730,6 @@ __global__ void GenerateRaysCDF(const uint32_t nRays,const uint32_t nCdfSampleNu
         const float termProb = occProb * T;
         T *= (1.0f - occProb);
         cdf[n] = termProb;
-
-        // printf("For point %f %f %f, density is %f\n", point.x(), point.y(), point.z(), termProb);     
     }
 
     // calculate sum
@@ -765,12 +762,33 @@ __global__ void GenerateRaysCDF(const uint32_t nRays,const uint32_t nCdfSampleNu
     // explicitly put last value to 1.0 (floating precision errors)
     cdf[nCdfSampleNum-1] = 1.0f;
 
-    // // print the cdf array
-    // printf("For ray %d, the cdf array is:\n", i);
-    // for (int n = 0; n < nCdfSampleNum; n++)
+    // // check incrementally if the difference between adjacent samples is too small
+    // float last_sample = 0.0f;
+    // int n = 0;
+    // EPS = 1e-4;
+    // for (; n<nCdfSampleNum; n++)
     // {
-    //     printf("%f ", cdf[n]);
+    //     if (cdf[n] - last_sample < EPS)
+    //     {
+    //         // find the next sample that has a bigger difference
+    //         int m = n+1;
+    //         for (; m<nCdfSampleNum; m++)
+    //         {
+    //             if (cdf[m] - last_sample >= EPS)
+    //                 break;
+    //         }
+    //         if (m == nCdfSampleNum)
+    //             break;
+
+    //         // distribute the difference evenly
+    //         float piece = (cdf[m] - last_sample) / (m-n+1);
+    //         for (int l=n; l<m; l++)
+    //             cdf[l] = last_sample + (l-n+1) * piece;
+    //         n = m;
+    //     }
+    //     last_sample = cdf[n];
     // }
+
 }
 
 
@@ -1854,18 +1872,18 @@ void NeRF_Model::GenerateBatch(cudaStream_t pStream,std::shared_ptr<NeRF_Dataset
         // auto toc = std::chrono::high_resolution_clock::now();
         {
             std::unique_lock<std::mutex> lock(mDensityGridMutex);
-        // generate cdf
-        tcnn::linear_kernel(GenerateRaysCDF,0,pStream,
-            mnRaysPerBatch,
-            mnCdfSampleNum,
-            mDensityActivation,
-            mnDensityPreScale,
-            mBoundingBox,
-            mBatchMemory.Rays.data(),
-            mDensityGrid.data(),
-            mBatchMemory.cdf.data()
-            );
-        CUDA_CHECK_THROW(cudaStreamSynchronize(pStream));
+            // generate cdf
+            tcnn::linear_kernel(GenerateRaysCDF,0,pStream,
+                mnRaysPerBatch,
+                mnCdfSampleNum,
+                mDensityActivation,
+                mnDensityPreScale,
+                mBoundingBox,
+                mBatchMemory.Rays.data(),
+                mDensityGrid.data(),
+                mBatchMemory.cdf.data()
+                );
+            CUDA_CHECK_THROW(cudaStreamSynchronize(pStream));
             lock.unlock();
         }
         // sample from cdf
@@ -1894,6 +1912,24 @@ void NeRF_Model::GenerateBatch(cudaStream_t pStream,std::shared_ptr<NeRF_Dataset
         // auto toc2 = std::chrono::high_resolution_clock::now();
         // std::cout << "GenerateInputPointsDensitySampling: " << std::chrono::duration_cast<std::chrono::microseconds>(toc2 - toc).count() << "ms" << std::endl;
     }
+
+    // // [DEBUG] - save the sampled cdf to a csv file
+    // std::vector<float> pointsInput(mnRaysPerBatch * mnSampleNum * 3);
+    // CUDA_CHECK_THROW(cudaMemcpy(pointsInput.data(), mBatchMemory.PointsInput.data(), mnRaysPerBatch * mnSampleNum * 3 * sizeof(float), cudaMemcpyDeviceToHost));
+
+    // // save the sampled cdf in a csv file
+    // std::ofstream file("cdf.csv");
+    // for (int i = 0; i < mnRaysPerBatch; i++)
+    // {
+    //     for (int j = 0; j < mnSampleNum; j++)
+    //     {
+    //         for (int k =0; k < 3; k++)
+    //             file << pointsInput[i*mnSampleNum*3 + 3 * j + k] << ",";
+    //         file << std::endl;
+    //     }
+    //     file << std::endl;
+    // }
+    // exit(0);
     
 }
 
@@ -2403,6 +2439,7 @@ void NeRF_Model::GenerateMesh(cudaStream_t pStream, MeshData& mMeshData, const s
     BoundingBox box = mBoundingBox;
     Eigen::Vector3i res3i = GetMarchingCubesRes(mMesh.res, box);
     float thresh = mMesh.thresh;
+    // thresh = 0.0f; // for learning a prior normalized mesh, sometimes a lenient threshold is needed
     tcnn::GPUMemory<float> density = GetDensityOnGrid(res3i, box,pStream);
 
     // copy to mDensityGrid
