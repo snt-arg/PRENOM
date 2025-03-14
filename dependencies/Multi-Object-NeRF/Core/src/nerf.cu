@@ -229,17 +229,18 @@ void NeRF::TrainOffline(const int nSteps, const int nItersPerStep)
         mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"", densityLoaded);
         mpModel->TransCPUMesh(mpModel->mpInferenceStream,mCPUMeshData);
         
-        if (mbVisualize)
-        {
-            // [DEBUG] - slow down to observe the mesh progress
-            usleep(200 * 1000);
-        }
+        // if (mbVisualize)
+        //     // [DEBUG] - slow down to observe the mesh progress
+        //     usleep(200 * 1000);
     }
 
     //Training
+    // int total_time_spent = 0;
     for(int i=1;i<=nSteps;i++)
     {
+        // auto start_time = std::chrono::high_resolution_clock::now(); 
         mpModel->Train_Step(mpTrainData, nItersPerStep);
+        // auto end_time = std::chrono::high_resolution_clock::now();
         // commenting since generation of mesh is needed for point sampling in rays
         if(mbVisualize || densityLoaded)
         {
@@ -248,8 +249,10 @@ void NeRF::TrainOffline(const int nSteps, const int nItersPerStep)
             //TransCPUMesh. The data is sent to the cpu first, and then opengl sends it to the GPU, wasting time and resources
             //mpModel->TransMesh(mMeshData);
             mpModel->TransCPUMesh(mpModel->mpInferenceStream,mCPUMeshData);
-            // // [DEBUG] - slow down to observe the mesh progress
-            // usleep(200 * 1000);
+
+            // const int time_spent = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+            // total_time_spent += time_spent;
+            // mpModel->SaveMesh(std::to_string(mnIdentifier) + "_" + std::to_string(mClass) + "_" + std::to_string(total_time_spent) + ".obj");
         }
     }
 
@@ -265,7 +268,7 @@ void NeRF::TrainOffline(const int nSteps, const int nItersPerStep)
         // use both identifier (default: 999) and object id to save all object meshes
         mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"");
         mpModel->TransCPUMesh(mpModel->mpInferenceStream,mCPUMeshData);
-        mpModel->SaveMesh(mOutputDir + std::to_string(mnIdentifier) + "_" + std::to_string(mId) + ".ply");
+        mpModel->SaveMesh(mOutputDir + std::to_string(mnIdentifier) + "_" + std::to_string(mClass) + ".ply");
     }
     // mpModel->RenderVideo(mpModel->mpInferenceStream,mpTrainData,"./output/rgb","./output/depth",1.0);
     std::cout << "Training completed" << std::endl;
@@ -277,20 +280,7 @@ void NeRF::SetAttributes(const int Class,const Eigen::Matrix4f& ObjTow,const Bou
     mClass = Class;
     mInstanceId = uint8_t(Class);
     mObjTow = ObjTow;
-    mBoundingBox = BoundingBox;
-    
-    // //Appropriately expand the 3D Bounding Box
-    // if(Class == 41 || Class == 73)
-    // {
-    //     mBoundingBox.max = 1.2f * mBoundingBox.max;
-    //     mBoundingBox.min = 1.2f * mBoundingBox.min;
-    // }
-    // else
-    // {
-    //     mBoundingBox.max = 1.1f * mBoundingBox.max;
-    //     mBoundingBox.min = 1.1f * mBoundingBox.min;
-    // }
-    
+    mBoundingBox = BoundingBox;    
     mFrameIdBbox.resize(maxnumBbox);
     mnBbox = 0;
 }
@@ -345,6 +335,7 @@ void NeRF::TrainOnline()
     cout<<"allocate_time: "<<std::chrono::duration_cast<std::chrono::milliseconds>(allocate_time - start).count()<<std::endl;
 
     int train_step_count = 0;
+    // int total_time_spent = 0;
     while(1)
     {
         int train_step = 0;
@@ -367,17 +358,24 @@ void NeRF::TrainOnline()
         {
             for(int i=0;i<train_step;i++)
             {
+                // auto start_time = std::chrono::high_resolution_clock::now();
                 mpModel->Train_Step_Online(mpTrainData,mDataMutexIdx,GetTrainIters(train_step_count));
+                // auto end_time = std::chrono::high_resolution_clock::now();
                 train_step_count += 1;
-                if(train_step_count % 2 == 0)
+                if(train_step_count % 1 == 0)
                 {
                     // mpModel->UpdateDensityGrid(mpModel->mpTrainStream);
-                    mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"", mpModel->mbDensityLoaded);
+                    mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"", mpModel->mbLoadDensity);
                     
                     //TransMesh uses VBO, visualization directly uses GPU data, but there are bugs
                     //TransCPUMesh. The data is sent to the cpu first, and then opengl sends it to the GPU, wasting time and resources
                     //mpModel->TransMesh(mMeshData);
                     mpModel->TransCPUMesh(mpModel->mpInferenceStream,mCPUMeshData);
+                    
+                    // // save by total milliseconds spent training
+                    // int time_spent = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+                    // total_time_spent += time_spent;
+                    // mpModel->SaveMesh(std::to_string(mnIdentifier) + "_" + std::to_string(mClass) + "_" + std::to_string(total_time_spent) + ".obj");
                 }
             }
         }
@@ -393,7 +391,7 @@ void NeRF::TrainOnline()
     mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"");
     //mpModel->TransMesh(mMeshData);
     mpModel->TransCPUMesh(mpModel->mpInferenceStream,mCPUMeshData);
-    mpModel->SaveMesh(std::to_string(mnIdentifier) + "_" + std::to_string(mId) + ".ply");
+    mpModel->SaveMesh(std::to_string(mnIdentifier) + "_" + std::to_string(mClass) + ".ply");
     cout<<"Id: "<<mId<<" finished! "<<endl;
     
 }
