@@ -54,9 +54,8 @@ ObjectManager::ObjectManager(Map* pMap, const string &strDataset, const string &
     mnImgWidth = fSettings["Camera.W"];
     mnImgHeight = fSettings["Camera.H"];
 
-    //RO-MAP
-    //Line detect--------------------------------------------------------
-    cout<<endl<<"Load RO-MAP Parameters..."<<endl;
+    // Line detect--------------------------------------------------------
+    cout<<endl<<"Load Parameters..."<<endl;
     int ExtendBox = fSettings["ExtendBox"];
     mbExtendBox = ExtendBox;
     cout<<"ExtendBox: "<<mbExtendBox<<endl;
@@ -78,12 +77,18 @@ ObjectManager::ObjectManager(Map* pMap, const string &strDataset, const string &
     cout<<"BoxMapPoints: "<<mnBoxMapPoints<<endl;
     if(mnBoxMapPoints < 1)
     {
-        cerr<<"Failed to load RO-MAP parameters, Please add parameters to yaml file..."<<endl;
+        cerr<<"Failed to load parameters, Please add parameters to yaml file..."<<endl;
         exit(0);
     }
 
+    mfMaxDepth = fSettings["MaxDepth"];
+    cout<<"MaxDepth: "<<mfMaxDepth<<endl;
+
     mnMinimumContinueObs = fSettings["Minimum.continue.obs"];
     cout<<"MinimumContinueObs: "<<mnMinimumContinueObs<<endl;
+
+    mnMaxBoxPercent = fSettings["MaxBoxPercent"];
+    cout<<"MaxBoxPercent: "<<mnMaxBoxPercent<<endl;
 
     AddMPsDistMultiple = fSettings["Add.MPs.distance.multiple"];
     cout<<"AddMPsDistMultiple: "<<AddMPsDistMultiple<<endl;
@@ -112,7 +117,7 @@ ObjectManager::ObjectManager(Map* pMap, const string &strDataset, const string &
         for(int j=0;j<4;j++)
             f >> tTest[i][j];  
     }
-    f.close();
+    f.close();  
 
     // load all priors for the objects
     std::ifstream file("cookbook/recipes.txt");
@@ -130,6 +135,11 @@ ObjectManager::ObjectManager(Map* pMap, const string &strDataset, const string &
         continue;
     }
     file.close();
+    cout << "Available classes: ";
+    for (int& classId : mvAvailableClasses) {
+        cout << classId << " ";
+    }
+    cout << endl;
 
     // read the available object configs
     for (int& classId : mvAvailableClasses) {
@@ -188,10 +198,20 @@ ObjectManager::ObjectManager(Map* pMap, const string &strDataset, const string &
         // load the prior type based on the config
         if (config.align.isDensityBased)
         {
+            // to get the density prescale, read the network.json file
+            std::ifstream networkFile("cookbook/" + std::to_string(classId) + "/network.json");
+            if (!networkFile) {
+                std::cerr << "Error opening network file" << std::endl;
+                continue;
+            }
+            nlohmann::json network;
+            networkFile >> network;
+            const float prescale = network["misc"]["depth_prescale"];
+
             // load the density grid
             std::string densityPath = "cookbook/" + std::to_string(classId) + "/density.ply";
-            float densities[GRID_SIZE_CUBE];
-            float* densityGrid = densities;
+            mmObjectDensities[classId] = new float[GRID_SIZE_CUBE];
+            // float* densityGrid = densities;
             std::ifstream densityFile(densityPath);
             if (!densityFile) {
                 std::cerr << "Error opening density file" << std::endl;
@@ -212,25 +232,21 @@ ObjectManager::ObjectManager(Map* pMap, const string &strDataset, const string &
                 if (!(iss >> density >> density >> density >> density)) {
                     break;
                 }
-                densities[index++] = density;
+                mmObjectDensities[classId][index++] = exp(density/prescale);
             }
-            mmObjectDensities[classId] = densityGrid;
         }
-        else
-        {
-            // load the ply model
-            pcl::PointCloud<pcl::PointXYZ>::Ptr model(new pcl::PointCloud<pcl::PointXYZ>);
-            std::string modelPath = "cookbook/" + std::to_string(classId) + "/model.ply";
-            if (pcl::io::loadPLYFile<pcl::PointXYZ>(modelPath, *model) == -1) {
-                std::cerr << "Error loading model file for class " << classId << std::endl;
-                continue;
-            }
-            model->width = model->size();
-            model->height = 1;
-            model->is_dense = false;
-            mmObjectModels[classId] = model;
+
+        // load the normalized mesh model
+        pcl::PointCloud<pcl::PointXYZ>::Ptr model(new pcl::PointCloud<pcl::PointXYZ>);
+        std::string modelPath = "cookbook/" + std::to_string(classId) + "/model.ply";
+        if (pcl::io::loadPLYFile<pcl::PointXYZ>(modelPath, *model) == -1) {
+            std::cerr << "Error loading model file for class " << classId << std::endl;
+            continue;
         }
-        
+        model->width = model->size();
+        model->height = 1;
+        model->is_dense = false;
+        mmObjectModels[classId] = model;
     }
 }
 
@@ -249,7 +265,6 @@ void ObjectManager::Run()
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
             continue;
         }
-
         auto task_start = std::chrono::high_resolution_clock::now();
 
         // get the next task
@@ -356,8 +371,8 @@ void ObjectManager::Run()
                     }
                 }
 
-                //Bbox is large than half of img
-                if(box.area() > mnImgWidth * mnImgHeight * 0.5)
+                // Bbox is large than a certain percentage of the image
+                if(box.area() > mnImgWidth * mnImgHeight * mnMaxBoxPercent)
                 {
                     resIdx[i] = 0;
                     continue;
@@ -444,7 +459,7 @@ void ObjectManager::Run()
 
         // set the class pointclouds
         vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> vClassClouds;
-        ClassPointcloudsFromDepth(imgDepth,imgInstance,pFrame->mvObjectFrame,vClassClouds);
+        ClassPointcloudsFromDepth(imgDepth,imgInstance,pFrame->mvObjectFrame,vClassClouds,mfMaxDepth);
         for (size_t i=0; i < pFrame->mvObjectFrame.size(); i++)
         {
             Object_Frame& obj = pFrame->mvObjectFrame[i];
@@ -910,7 +925,7 @@ void ObjectManager::Run()
                         //creat new ObjectMap
                         int classId = obj.mnClass;
                         float* priorDensity = static_cast<float*>(NULL);
-                        pcl::PointCloud<pcl::PointXYZ>::Ptr priorModel;
+                        pcl::PointCloud<pcl::PointXYZ>::Ptr priorModel = static_cast<pcl::PointCloud<pcl::PointXYZ>::Ptr>(NULL);
                         if (find(mvAvailableClasses.begin(), mvAvailableClasses.end(), classId) == mvAvailableClasses.end())
                         {
                             classId = 0;
@@ -1000,7 +1015,7 @@ void ObjectManager::Run()
 
         auto task_end = std::chrono::high_resolution_clock::now();
         auto task_duration = std::chrono::duration_cast<std::chrono::milliseconds>(task_end - task_start);
-        cout << "Task duration: " << task_duration.count() << " ms" << std::endl;
+        // cout << "Task duration: " << task_duration.count() << " ms" << std::endl;
     }
 }
 
@@ -1067,7 +1082,7 @@ bool ObjectManager::InitObjectMap(Frame* pFrame)
         //create new ObjectMap
         int classId = ObjFrame[i].mnClass;
         float* priorDensity = static_cast<float*>(NULL);
-        pcl::PointCloud<pcl::PointXYZ>::Ptr priorModel;
+        pcl::PointCloud<pcl::PointXYZ>::Ptr priorModel = static_cast<pcl::PointCloud<pcl::PointXYZ>::Ptr>(NULL);
         if (find(mvAvailableClasses.begin(), mvAvailableClasses.end(), classId) == mvAvailableClasses.end())
         {
             classId = 0;
