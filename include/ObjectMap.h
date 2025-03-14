@@ -4,6 +4,14 @@
 * Created: 05/18/2022
 * Author: Xiao Han
 */
+
+/*
+* Modification: PRENOM
+* Version: 1.0
+* Created: 12/25/2024
+* Author: Saad Ejaz
+*/
+
 #ifndef OBJECT_MAP_H
 #define OBJECT_MAP_H
 
@@ -116,12 +124,6 @@ struct ObjectConfig
         bool enabled;
         float tolerance;
     } clustering;
-
-    struct kneedleFilter {
-        bool enabled;
-        size_t uncertainPoints;
-        float sensitivity;
-    } kneedleFilter;
 };
 
 class Object_Map 

@@ -186,9 +186,6 @@ ObjectManager::ObjectManager(Map* pMap, const string &strDataset, const string &
         config.centroidTTest.minHistorySize = j["centroid_t_test"]["min_history_size"];
         config.rankSumTest.enabled = j["rank_sum_test"]["enabled"];
         config.rankSumTest.minHistorySize = j["rank_sum_test"]["min_history_size"];
-        config.kneedleFilter.enabled = j["kneedle_filter"]["enabled"];
-        config.kneedleFilter.uncertainPoints = j["kneedle_filter"]["uncertain_points"];
-        config.kneedleFilter.sensitivity = j["kneedle_filter"]["sensitivity"];
         mmObjectConfigs[classId] = config;
 
         // defaults only have configs

@@ -388,34 +388,23 @@ void Object_Map::CalculateObjectPose(const Frame& CurrentFrame)
         return;
 
     Eigen::VectorXd robustX, robustY, robustZ;
-    if (mConfig.kneedleFilter.enabled)
+    const size_t dimSize = mCloud->points.size();
+    robustX = Eigen::VectorXd::Zero(dimSize);
+    robustY = Eigen::VectorXd::Zero(dimSize);
+    robustZ = Eigen::VectorXd::Zero(dimSize);
+    for (size_t i = 0; i < dimSize; i++)
     {
-        const tuple<Eigen::VectorXd, Eigen::VectorXd, Eigen::VectorXd> robustSize = Utils::getRobustSizeFromPointCloud<pcl::PointXYZ>(mCloud, mConfig.kneedleFilter.sensitivity, mConfig.kneedleFilter.uncertainPoints);
-        robustX = get<0>(robustSize);
-        robustY = get<1>(robustSize);
-        robustZ = get<2>(robustSize);
+        robustX(i) = mCloud->points[i].x;
+        robustY(i) = mCloud->points[i].y;
+        robustZ(i) = mCloud->points[i].z;
     }
-    else
-    {
-        const size_t dimSize = mCloud->points.size();
-        robustX = Eigen::VectorXd::Zero(dimSize);
-        robustY = Eigen::VectorXd::Zero(dimSize);
-        robustZ = Eigen::VectorXd::Zero(dimSize);
-        for (size_t i = 0; i < dimSize; i++)
-        {
-            robustX(i) = mCloud->points[i].x;
-            robustY(i) = mCloud->points[i].y;
-            robustZ(i) = mCloud->points[i].z;
-        }
-        sort(robustX.begin(), robustX.end());
-        sort(robustY.begin(), robustY.end());
-        sort(robustZ.begin(), robustZ.end());
-    }
+    sort(robustX.begin(), robustX.end());
+    sort(robustY.begin(), robustY.end());
+    sort(robustZ.begin(), robustZ.end());
 
     lock.unlock();
 
     // get the size - assume it's the same for all axes
-    const size_t dimSize = robustX.size();
     assert(robustY.size() == dimSize && robustZ.size() == dimSize);
 
     twobj.at<float>(0) = (robustX(0) + robustX(dimSize-1)) / 2;
@@ -783,8 +772,6 @@ void Object_Map::CalculateObjectShape(const bool removeOutliers)
     // lock1.unlock();
 
     // remove outliers
-    // if (mConfig.outlierRemoval.enabled && mCloud->points.size() > mConfig.pointcloud.maxPoints/2)
-    //     Utils::pointcloudOutlierRemoval<pcl::PointXYZ>(mCloud, mConfig.outlierRemoval.minNeighbors*2, mConfig.outlierRemoval.stdDev);
     if (mConfig.pointcloudEIF.enabled)
         EIFFilterOutlierCloud();
 
@@ -792,32 +779,21 @@ void Object_Map::CalculateObjectShape(const bool removeOutliers)
     pcl::transformPointCloud(*mCloud,*objCloud,Tow);
 
     Eigen::VectorXd robustX, robustY, robustZ;
-    if (mConfig.kneedleFilter.enabled)
+    const size_t dimSize = objCloud->points.size();
+    robustX = Eigen::VectorXd::Zero(dimSize);
+    robustY = Eigen::VectorXd::Zero(dimSize);
+    robustZ = Eigen::VectorXd::Zero(dimSize);
+    for (size_t i = 0; i < dimSize; i++)
     {
-        const tuple<Eigen::VectorXd, Eigen::VectorXd, Eigen::VectorXd> robustSize = Utils::getRobustSizeFromPointCloud<pcl::PointXYZ>(objCloud, mConfig.kneedleFilter.sensitivity, mConfig.kneedleFilter.uncertainPoints);
-        robustX = get<0>(robustSize);
-        robustY = get<1>(robustSize);
-        robustZ = get<2>(robustSize);
+        robustX(i) = objCloud->points[i].x;
+        robustY(i) = objCloud->points[i].y;
+        robustZ(i) = objCloud->points[i].z;
     }
-    else
-    {
-        const size_t dimSize = objCloud->points.size();
-        robustX = Eigen::VectorXd::Zero(dimSize);
-        robustY = Eigen::VectorXd::Zero(dimSize);
-        robustZ = Eigen::VectorXd::Zero(dimSize);
-        for (size_t i = 0; i < dimSize; i++)
-        {
-            robustX(i) = objCloud->points[i].x;
-            robustY(i) = objCloud->points[i].y;
-            robustZ(i) = objCloud->points[i].z;
-        }
-        sort(robustX.begin(), robustX.end());
-        sort(robustY.begin(), robustY.end());
-        sort(robustZ.begin(), robustZ.end());
-    }
+    sort(robustX.begin(), robustX.end());
+    sort(robustY.begin(), robustY.end());
+    sort(robustZ.begin(), robustZ.end());
     
     // get the size - assume it's the same for all axes
-    const size_t dimSize = robustX.size();
     assert(robustY.size() == dimSize && robustZ.size() == dimSize);
 
     //pos after Robjw

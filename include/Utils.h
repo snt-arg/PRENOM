@@ -1,6 +1,9 @@
-/**
- * 🚀 [vS-Graphs] A class for keeping the utility functions
- */
+/*
+* Modification: PRENOM
+* Version: 1.0
+* Created: 12/25/2024
+* Author: Saad Ejaz
+*/
 
 #ifndef UTILS_H
 #define UTILS_H
@@ -83,22 +86,6 @@ namespace ORB_SLAM2
          * @param clusterTolerance the tolerance for clustering
          */
         static void pointcloudEuclideanClustering(const pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud, std::vector<pcl::PointIndices> &clusterIndices, const float clusterTolerance);
-
-
-        /**
-         * @brief Gets the robust size from the pointcloud
-         *
-         * @param cloud the pointcloud to be processed
-         * @param kneedleSensitivity the sensitivity for the kneedle method
-         * @param numUncertain the number of uncertain points
-         */
-        template <typename PointT>
-        static tuple<Eigen::VectorXd, Eigen::VectorXd, Eigen::VectorXd> getRobustSizeFromPointCloud(const typename pcl::PointCloud<PointT>::Ptr &cloud,
-                                                                                                    const float kneedleSensitivity, const size_t numUncertain);
-        static Eigen::VectorXd getKneedleThreshold(const Eigen::VectorXd& localMaximasY, const Eigen::VectorXd& xNorm, const float sensistivity);
-        static int getKneePoint(const Eigen::VectorXd &values, const float sensitivity = 1.0, const uint8_t polyDeg = 0);
-        static Eigen::VectorXd minMaxNormalize(const Eigen::VectorXd& values);
-        static Eigen::VectorXi findLocalExtrema(const Eigen::VectorXd& values, bool max);
 
         /**
          * @brief Checks the rank sum test for the incoming pointcloud

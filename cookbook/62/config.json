@@ -60,11 +60,5 @@
     "rank_sum_test": {
         "enabled": false,
         "min_history_size": 25
-    },
-
-    "kneedle_filter": {
-        "enabled": false,
-        "sensitivity": 15,
-        "uncertain_points": 25
     }
 }
