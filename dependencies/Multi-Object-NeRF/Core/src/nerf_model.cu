@@ -2590,7 +2590,7 @@ void NeRF_Model::TransMesh(MeshData& meshdata)
 
 void NeRF_Model::SaveMesh(const string outname)
 {
-    save_mesh(mMesh.verts, mMesh.vert_normals, mMesh.vert_colors, mMesh.indices, outname.c_str(), mMesh.unwrap,mfScale, mOffset);
+    save_mesh(mMesh.verts, mMesh.vert_normals, mMesh.vert_colors, mMesh.indices, outname.c_str(), mMesh.unwrap, mfScale, mOffset);
 }
 
 Eigen::Matrix4f NeRF_Model::GenerateToc(const float theta,const float phi,const float r)

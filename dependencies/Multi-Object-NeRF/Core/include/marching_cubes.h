@@ -57,7 +57,7 @@ void save_mesh(
 	tcnn::GPUMemory<uint32_t>& indices,
 	const char* outputname,
 	bool unwrap_it,
-	float nerf_scale,
+	Eigen::Vector3f nerf_scale,
 	Eigen::Vector3f nerf_offset
 );
 

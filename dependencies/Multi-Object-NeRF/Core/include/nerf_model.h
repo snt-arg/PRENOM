@@ -144,7 +144,7 @@ public:
     float mfPerTrainLoss = 0;
     vector<float> mHisLoss;
 
-    float mfScale = 1;
+    Eigen::Vector3f mfScale = Eigen::Vector3f::Ones();
     Eigen::Vector3f mOffset = Eigen::Vector3f::Zero();
 
     //CUDA GPU

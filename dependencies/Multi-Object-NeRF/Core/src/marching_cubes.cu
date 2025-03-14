@@ -541,7 +541,7 @@ void save_mesh(
 	tcnn::GPUMemory<uint32_t>& indices,
 	const char* outputname,
 	bool unwrap_it,
-	float nerf_scale,
+	Eigen::Vector3f nerf_scale,
 	Eigen::Vector3f nerf_offset
 ) 
 {
@@ -619,7 +619,7 @@ void save_mesh(
 		);
 		for (size_t i=0;i<cpuverts.size();++i) 
 		{
-			Eigen::Vector3f p=(cpuverts[i]-nerf_offset)/nerf_scale;
+			Eigen::Vector3f p=(cpuverts[i]-nerf_offset).cwiseQuotient(nerf_scale);
 			Eigen::Vector3f c=cpucolors[i];
 			Eigen::Vector3f n=cpunormals[i].normalized();
 			unsigned char c8[3]={(unsigned char)tcnn::clamp(c.x()*255.f,0.f,255.f),(unsigned char)tcnn::clamp(c.y()*255.f,0.f,255.f),(unsigned char)tcnn::clamp(c.z()*255.f,0.f,255.f)};
@@ -634,7 +634,7 @@ void save_mesh(
 			fprintf(f, "mtllib nerf.mtl\n");
 		}
 		for (size_t i = 0; i < cpuverts.size(); ++i) {
-			Eigen::Vector3f p = (cpuverts[i]-nerf_offset)/nerf_scale;
+			Eigen::Vector3f p = (cpuverts[i]-nerf_offset).cwiseQuotient(nerf_scale);
 			Eigen::Vector3f c = cpucolors[i];
 			fprintf(f,"v %0.5f %0.5f %0.5f %0.3f %0.3f %0.3f\n", p.x(), p.y(), p.z(), tcnn::clamp(c.x(), 0.f, 1.f), tcnn::clamp(c.y(), 0.f, 1.f), tcnn::clamp(c.z(), 0.f, 1.f));
 		}
