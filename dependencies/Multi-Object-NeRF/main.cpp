@@ -123,18 +123,18 @@ void viewer::Run()
 
         d_cam.Activate(s_cam);
         glClearColor(1.0f,1.0f,1.0f,1.0f);
-        //ground XYZ
-        glBegin ( GL_LINES );
-        glColor3f ( 1.0f,0.f,0.f );
-        glVertex3f( 0,0,0 );
-        glVertex3f( 1,0,0 );
-        glColor3f( 0.f,1.0f,0.f);
-        glVertex3f( 0,0,0 );
-        glVertex3f( 0,1,0 );
-        glColor3f( 0.f,0.f,1.f);
-        glVertex3f( 0,0,0 );
-        glVertex3f( 0,0,1 );
-        glEnd();
+        // //ground XYZ
+        // glBegin ( GL_LINES );
+        // glColor3f ( 1.0f,0.f,0.f );
+        // glVertex3f( 0,0,0 );
+        // glVertex3f( 1,0,0 );
+        // glColor3f( 0.f,1.0f,0.f);
+        // glVertex3f( 0,0,0 );
+        // glVertex3f( 0,1,0 );
+        // glColor3f( 0.f,0.f,1.f);
+        // glVertex3f( 0,0,0 );
+        // glVertex3f( 0,0,1 );
+        // glEnd();
 
         DrawFrameAndRays(menuShowFrames,menuShowObs);
         for(int i=0;i<vpNeRFs.size();i++)
@@ -353,7 +353,6 @@ int main(int argc, char** argv)
     }
     
     nerfManager.WaitThreadsEnd();
-
     return 0;
 }
 
