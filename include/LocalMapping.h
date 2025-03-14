@@ -8,6 +8,11 @@
 * Version: 1.0
 * Created: 05/23/2022
 * Author: Xiao Han
+*
+* Modification: PRENOM
+* Version: 1.0
+* Created: 12/25/2024
+* Author: Saad Ejaz
 */
 
 #ifndef LOCALMAPPING_H
@@ -72,6 +77,7 @@ public:
     void UpdateObjNeRF();
     void GetUpdateBbox(Object_Map* pObj, vector<nerf::FrameIdAndBbox>& vFrameBbox);
     static float mfAngleChange;
+    static int mnRestBetweenNeRFs;
 
 protected:
 
@@ -88,7 +94,7 @@ protected:
 
     cv::Mat SkewSymmetricMatrix(const cv::Mat &v);
 
-    //RO-MAP--------------------------------------
+    // RO-MAP--------------------------------------
     //Update Object Size And Shape
     void UpdateObjSizeAndPose();
 
@@ -117,7 +123,7 @@ protected:
 
     //-----------------------------------------
 
-
+    int mnKFsSinceLastNeRF = 0;
     bool mbMonocular;
 
     void ResetIfRequested();

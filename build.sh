@@ -19,7 +19,7 @@ cmake . -B build
 cmake --build build --config Release -j $1
 
 cd ../../
-echo "Configuring and building RO-MAP ..."
+echo "Configuring and building PRENOM ..."
 cmake . -B build
 cmake --build build --config RelWithDebInfo -j $1
 

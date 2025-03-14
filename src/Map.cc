@@ -130,7 +130,7 @@ void Map::clear()
     mvpKeyFrameOrigins.clear();
 }
 
-//RO-MAP-------------------------------------------------------
+// RO-MAP-------------------------------------------------------
 
 void Map::AddObjectMap(Object_Map* pOBJ)
 {
@@ -154,4 +154,4 @@ vector<Object_Map*> Map::GetAllObjectMap()
     return vector<Object_Map*>(mspObjectMap.begin(),mspObjectMap.end());
 }
 
-} //namespace ORB_SLAM
+} //namespace ORB_SLAM2

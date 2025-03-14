@@ -73,7 +73,7 @@ public:
     int PredictScale(const float &currentDist, KeyFrame*pKF);
     int PredictScale(const float &currentDist, Frame* pF);
 
-    //RO-MAP
+    // RO-MAP
     void AddObject(Object_Map* obj);
     void EraseObject(Object_Map* obj);
 public:
@@ -143,7 +143,7 @@ protected:
      std::mutex mMutexPos;
      std::mutex mMutexFeatures;
      
-     //RO-MAP
+     // RO-MAP
      std::mutex mMutexObject;
 };
 

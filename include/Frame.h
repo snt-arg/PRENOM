@@ -95,7 +95,7 @@ public:
     // Backprojects a keypoint (if stereo/depth info available) into 3D world coordinates.
     cv::Mat UnprojectStereo(const int &i);
 
-    //RO-MAP------------------------------------
+    // RO-MAP------------------------------------
     void UndistortFrameBbox();
 
     void UndistortBbox(vector<Bbox>& vBbox);
@@ -197,8 +197,8 @@ public:
 
     static bool mbInitialComputations;
 
-    //RO-MAP
-    //2D bounding box
+    // RO-MAP
+    // 2D bounding box
     std::vector<Bbox> mvBbox;
     std::vector<Bbox> mvBboxUn;
     bool mbDetectObject;

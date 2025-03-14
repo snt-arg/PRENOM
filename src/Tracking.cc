@@ -7,6 +7,11 @@
 * Modification: RO-MAP
 * Version: 1.0
 * Author: Xiao Han
+*
+* Modification: PRENOM
+* Version: 1.0
+* Created: 12/02/2024
+* Author: Saad Ejaz
 */
 
 #include "Tracking.h"
@@ -40,7 +45,6 @@ Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer,
     mpFrameDrawer(pFrameDrawer), mpMapDrawer(pMapDrawer), mpMap(pMap), mnLastRelocFrameId(0), mstrDataset(strDataset)
 {
     // Load camera parameters from settings file
-
     cv::FileStorage fSettings(strSettingPath, cv::FileStorage::READ);
     float fx = fSettings["Camera.fx"];
     float fy = fSettings["Camera.fy"];
@@ -255,7 +259,6 @@ cv::Mat Tracking::GrabImageRGBD(const cv::Mat &im, const cv::Mat &imD, const cv:
 cv::Mat Tracking::GrabImageMonocular(const cv::Mat &im,const cv::Mat &ImgInstance, const double &timestamp, const string &strDataset)
 {
     mImGray = im;
-    //RO-MAP
     mImColor = im;
     mImgInstance = ImgInstance;
     if(mImGray.channels()==3)
@@ -596,7 +599,6 @@ void Tracking::Track()
         }
 
         mCurrentFrame.mpReferenceKF = mpReferenceKF;
-
         // If we have an initial estimation of the camera pose and matching. Track the local map.
         if(!mbOnlyTracking)
         {

@@ -39,7 +39,7 @@ public:
     void SetReferenceKeyFrame(KeyFrame *pKF);
     void GetCurrentOpenGLCameraMatrix(pangolin::OpenGlMatrix &M);
 
-    //RO-MAP
+    // RO-MAP
     void DrawObject(bool drawPoints, bool drawMesh, bool drawBbox,bool drawObs);
     void SetNeRFManager(nerf::NerfManagerOnline* pNeRFManager);
     nerf::NerfManagerOnline* mpNeRFManager;

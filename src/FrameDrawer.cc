@@ -170,7 +170,7 @@ void FrameDrawer::Update(Tracking *pTracker, ObjectManager* pObjectManager)
 
     mvCurrentKeys=pTracker->mCurrentFrame.mvKeys;
 
-    //RO-MAP
+    // RO-MAP
     //mvBbox = pTracker->mCurrentFrame.mvBbox;
     mvBbox.clear();
     mvObjLines.clear();

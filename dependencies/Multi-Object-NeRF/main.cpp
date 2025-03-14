@@ -1,6 +1,8 @@
 /** @file   main.cpp
  *  @author Xiao Han
  *  @date 2022.11.8
+ * 
+ * @modified by Saad Ejaz
  */
 
 #define CUDA_API_PER_THREAD_DEFAULT_STREAM

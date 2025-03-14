@@ -8,6 +8,11 @@
 * Version: 1.0
 * Created: 05/20/2022
 * Author: Xiao Han
+*
+* Modification: PRENOM
+* Version: 1.0
+* Created: 01/27/2025
+* Author: Saad Ejaz
 */
 
 #include "MapDrawer.h"
@@ -270,7 +275,7 @@ void MapDrawer::GetCurrentOpenGLCameraMatrix(pangolin::OpenGlMatrix &M)
         M.SetIdentity();
 }
 
-//RO-MAP
+// RO-MAP
 void MapDrawer::DrawObject(bool drawPoints, bool drawMesh, bool drawBbox,bool drawObs)
 {
     vector<Object_Map*> AllObjs = mpMap->GetAllObjectMap();
@@ -302,7 +307,7 @@ void MapDrawer::DrawObject(bool drawPoints, bool drawMesh, bool drawBbox,bool dr
 
     for(int i=0;i<AllObjs.size();i++)
     {
-        if(AllObjs[i]->IsBad() || AllObjs[i]->mbFirstInit || AllObjs[i]->mnObs <15)
+        if(AllObjs[i]->IsBad() || AllObjs[i]->mbFirstInit || AllObjs[i]->mnObs < 3)
             continue;
 
         glPushMatrix();
@@ -373,22 +378,23 @@ void MapDrawer::DrawObject(bool drawPoints, bool drawMesh, bool drawBbox,bool dr
             glVertex3f(a1, -a2, a3);
             glVertex3f(a1, -a2, -a3);
             glEnd();
-
-            //XYZ Coordinate
-            glLineWidth(linewidth);
-            glBegin ( GL_LINES );
-            glColor3f ( 1.0f,0.f,0.f );
-            glVertex3f( 0,0,0 );
-            glVertex3f( w,0,0 );
-            glColor3f( 0.f,1.0f,0.f);
-            glVertex3f( 0,0,0 );
-            glVertex3f( 0,w,0 );
-            glColor3f( 0.f,0.f,1.f);
-            glVertex3f( 0,0,0 );
-            glVertex3f( 0,0,w );
-            glEnd();
         }
         
+        //XYZ Coordinate
+        const float extra = shape_a3 * 0.12;
+        // const float extra = 0.00;
+        glLineWidth(linewidth + 1);
+        glBegin ( GL_LINES );
+        glColor3f ( 1.0f,0.f,0.f );
+        glVertex3f( 0,0,extra );
+        glVertex3f( w,0,extra );
+        glColor3f( 0.f,1.0f,0.f);
+        glVertex3f( 0,0,extra );
+        glVertex3f( 0,w,extra );
+        glColor3f( 0.f,0.f,1.f);
+        glVertex3f( 0,0,extra );
+        glVertex3f( 0,0,w+extra );
+        glEnd();
 
         if(drawMesh && AllObjs[i]->haveNeRF)
         {
@@ -404,6 +410,7 @@ void MapDrawer::DrawObject(bool drawPoints, bool drawMesh, bool drawBbox,bool dr
             glBegin(GL_POINTS);
             glColor3f(color[0]/255.0, color[1]/255.0, color[2]/255.0);
 
+            // // [NOTE] - uncomment to draw map points
             // vector<MapPoint*> pMPs = AllObjs[i]->mvpMapPoints;
             // for(size_t i=0, iend=pMPs.size(); i<iend;i++)
             // {

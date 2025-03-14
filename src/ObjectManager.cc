@@ -1,3 +1,10 @@
+/**
+* Modification: PRENOM
+* Version: 1.0
+* Created: 01/27/2025
+* Author: Saad Ejaz
+*/
+
 #include "ObjectManager.h"
 #include <thread>
 

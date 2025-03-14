@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.18)
-project(RO-MAP)
+project(PRENOM)
 
 IF(NOT CMAKE_BUILD_TYPE)
   SET(CMAKE_BUILD_TYPE Release)

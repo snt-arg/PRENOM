@@ -13,7 +13,7 @@ if __name__ != "__main__":
     from .reconstruction_evaluation import accuracy, completion
 
 SAPIENS_DATA_DIR = "/home/saadejazz/sap_nerf/output"
-TRAINING_DIR = "/home/saadejazz/RO-MAP-NG/dependencies/Multi-Object-NeRF"
+TRAINING_DIR = "/home/saadejazz/PRENOM/dependencies/Multi-Object-NeRF"
 # output directory for the trained models (needs to be the same in system.json of the training script)
 # must have a trailing slash
 OUTPUT_DIR = "/home/saadejazz/momvml_output/"
@@ -152,6 +152,10 @@ def run_single_meta_iteration(
         
         print(f"Meta training iter {i} with data dir: {data_dir}")
         single_train_call(base_path, system_path, data_dir)
+        
+        # # copy to see the progress
+        # shutil.copyfile(os.path.join(output_dir, f"meta_{identifier}.obj"), os.path.join(output_dir, f"meta_{identifier}_{i}.obj"))
+        # shutil.copyfile(os.path.join(output_dir, f"meta_{identifier}.json"), os.path.join(output_dir, f"meta_{identifier}_{i}.json"))
         
     # delete the json files
     os.remove(base_path)

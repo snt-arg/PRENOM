@@ -8,9 +8,13 @@
 * Version: 1.0
 * Created: 05/12/2022
 * Author: Xiao Han
+*
+* Modification: PRENOM
+* Version: 1.0
+* Created: 01/19/2025
+* Author: Saad Ejaz
 */
 
-//#include <opencv2/ximgproc.hpp>
 
 #include "Viewer.h"
 #include <pangolin/pangolin.h>
@@ -73,7 +77,7 @@ void Viewer::Run()
     mbFinished = false;
     mbStopped = false;
 
-    pangolin::CreateWindowAndBind("RO-MAP: Map Viewer",1024,768);
+    pangolin::CreateWindowAndBind("PRENOM: Map Viewer",1024,768);
     if(glewInit() != GLEW_OK)
         throw std::runtime_error("glewInit failed");
     // 3D Mouse handler requires depth testing to be enabled
@@ -91,7 +95,7 @@ void Viewer::Run()
     pangolin::Var<bool> menuLocalizationMode("menu.Localization",false,true);
     pangolin::Var<bool> menuReset("menu.Reset",false,false);
 
-    //RO-MAP
+    // RO-MAP
     pangolin::Var<bool> menuShowObject("menu.Show Objects",true,true);
     pangolin::Var<bool> menuShowObjectMPs("menu.Show Obj MPs",true,true);
     pangolin::Var<bool> menuShowBbox("menu.Show Bbox",true,true);
@@ -117,8 +121,8 @@ void Viewer::Run()
     pangolin::OpenGlMatrix Twc;
     Twc.SetIdentity();
 
-    cv::namedWindow("RO-MAP: Current Frame Bbox");
-    cv::namedWindow("RO-MAP: Current Instance Frame");
+    cv::namedWindow("PRENOM: Current Frame Bbox");
+    cv::namedWindow("PRENOM: Current Instance Frame");
     bool bFollow = true;
     bool bLocalizationMode = false;
     
@@ -248,7 +252,7 @@ void Viewer::Run()
 
         glClearColor(1.0f,1.0f,1.0f,1.0f);
 
-        //ground XYZ
+        // world coordinate system
         /* glBegin ( GL_LINES );
         glColor3f ( 1.0f,0.f,0.f );
         glVertex3f( 0,0,0 );
@@ -296,8 +300,8 @@ void Viewer::Run()
         if(!iminstance.empty() && !imcolor.empty())
         {
             //cv::imshow("ORB-SLAM2: Current Frame",imgray);
-            cv::imshow("RO-MAP: Current Frame Bbox",imcolor);
-            cv::imshow("RO-MAP: Current Instance Frame",iminstance);
+            cv::imshow("PRENOM: Current Frame Bbox",imcolor);
+            cv::imshow("PRENOM: Current Instance Frame",iminstance);
             cv::waitKey(mT);
         }
     

@@ -52,7 +52,7 @@ public:
 
     void clear();
 
-    //RO-MAP
+    // RO-MAP
     void AddObjectMap(Object_Map* pOBJ);
     void EraseObjectMap(Object_Map* pOBJ);
     std::vector<Object_Map*> GetAllObjectMap();
@@ -70,7 +70,7 @@ public:
 protected:
     std::set<MapPoint*> mspMapPoints;
     std::set<KeyFrame*> mspKeyFrames;
-    //RO-MAP
+    // RO-MAP
     std::set<Object_Map*> mspObjectMap;
 
     std::vector<MapPoint*> mvpReferenceMapPoints;

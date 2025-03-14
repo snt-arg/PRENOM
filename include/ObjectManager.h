@@ -1,8 +1,8 @@
 /*
-* Modification: SQ-SLAM
+* Modification: PRENOM
 * Version: 1.0
-* Created: 05/18/2022
-* Author: Xiao Han
+* Created: 12/25/2024
+* Author: Saad Ejaz
 */
 #ifndef OBJECTMANAGER_H
 #define OBJECTMANAGER_H
@@ -31,6 +31,7 @@
 #include <map>
 #include <mutex>
 
+#define GRID_SIZE_CUBE 262144
 
 using namespace g2o;
 using namespace std;
@@ -72,7 +73,6 @@ public:
 
     
 protected:
-
     // Map
     Map* mpMap;
 
@@ -110,8 +110,10 @@ protected:
     set<int> mvIgnoreCategory;
     int mnBoxMapPoints;
     int mnMinimumContinueObs;
+    float mnMaxBoxPercent = 0.5;
     float AddMPsDistMultiple;
     int mnFramesPassed = 0;
+    float mfMaxDepth = 3.5f;
 
     // dataset string
     string mStrDataset;

@@ -684,7 +684,7 @@ cv::Mat Frame::UnprojectStereo(const int &i)
         return cv::Mat();
 }
 
-//RO-MAP
+// RO-MAP
 void Frame::UndistortFrameBbox()
 {   
     mvBboxUn=mvBbox;

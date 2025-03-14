@@ -1,14 +1,19 @@
-/**
+/*
 * This file is part of ORB-SLAM2.
 *
 * Copyright (C) 2014-2016 Raúl Mur-Artal <raulmur at unizar dot es> (University of Zaragoza)
 * For more information see <https://github.com/raulmur/ORB_SLAM2>
 *
-/*
+ *
 * Modification: SQ-SLAM
 * Version: 1.0
 * Created: 05/23/2022
 * Author: Xiao Han
+ *
+ * Modification: PRENOM
+ * Version: 1.0
+ * Created: 12/25/2024
+ * Author: Saad Ejaz
 */
 
 
@@ -16,21 +21,21 @@
 #include "LoopClosing.h"
 #include "ORBmatcher.h"
 #include "Optimizer.h"
-#include"Converter.h"
+#include "Converter.h"
 #include <unistd.h>
-#include<mutex>
+#include <mutex>
 #include "ObjectMap.h"
 
 namespace ORB_SLAM2
 {
 float LocalMapping::mfAngleChange;
+int LocalMapping::mnRestBetweenNeRFs;
 
 LocalMapping::LocalMapping(Map *pMap, const float bMonocular):mnLastUpdateObjFrameId(0),
     mbMonocular(bMonocular), mbResetRequested(false), mbFinishRequested(false), mbFinished(true), mpMap(pMap),
     mbAbortBA(false), mbStopped(false), mbStopRequested(false), mbNotStop(false), mbAcceptKeyFrames(true)
 {
-
-    //RO-MAP
+    // RO-MAP
     //read t-test data
     ifstream f;
     f.open("./lib/t_test.txt");
@@ -118,7 +123,6 @@ void LocalMapping::Run()
             std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
 	        double ttrack= std::chrono::duration_cast<std::chrono::duration<double> >(t2 - t1).count();
 	        vTimesLocalMapping.push_back(ttrack);
-
         }
         else if(Stop())
         {
@@ -139,7 +143,6 @@ void LocalMapping::Run()
                     pOBJ->EIFFilterOutlier();
                     pOBJ->CalculateObjectShape();
                 }
-                
                 break;
             }
                 
@@ -485,8 +488,6 @@ void LocalMapping::CreateNewMapPoints()
             const float ratioDist = dist2/dist1;
             const float ratioOctave = mpCurrentKeyFrame->mvScaleFactors[kp1.octave]/pKF2->mvScaleFactors[kp2.octave];
 
-            /*if(fabs(ratioDist-ratioOctave)>ratioFactor)
-                continue;*/
             if(ratioDist*ratioFactor<ratioOctave || ratioDist>ratioOctave*ratioFactor)
                 continue;
 
@@ -1125,7 +1126,7 @@ void LocalMapping::NewDataToGPU()
     if(mlNewKeyFramesNeRF.empty())
         return;
     
-    /* //----------------------------------------------------------------------
+    /* [TODO] - Update old KeyFrame poses - critical for noisy poses
     //update old Frame pose ... Not use
     if(mvNeRFDataKeyFrames.size() > 10 && mvNeRFDataKeyFrames.size() % 10 == 0)
     {
@@ -1297,4 +1298,4 @@ void LocalMapping::GetUpdateBbox(Object_Map* pObj, vector<nerf::FrameIdAndBbox>&
     }
 }
 
-} //namespace ORB_SLAM
+} //namespace ORB_SLAM2

@@ -8,6 +8,11 @@
 * Version: 1.0
 * Created: 05/11/2022
 * Author: Xiao Han
+*
+* Modification: PRENOM
+* Version: 1.0
+* Created: 12/25/2024
+* Author: Saad Ejaz
 */
 
 #include "System.h"
@@ -618,7 +623,7 @@ void System::RenderNeRFsTest(const string out_path)
 
     }
 
-/* 
+/* [TODO] - add update to KeyFrame poses
 //-------------------------------------------------------------------
     //if update old dataset, use the following code
     map<string,Eigen::Matrix4f> vFrameTwc;

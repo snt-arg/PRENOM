@@ -4,9 +4,9 @@
 * Copyright (C) 2014-2016 Raúl Mur-Artal <raulmur at unizar dot es> (University of Zaragoza)
 * For more information see <https://github.com/raulmur/ORB_SLAM2>
 *
-* Modification: RO-MAP
+* Modification: PRENOM
 * Version: 1.0
-* Created: 12/19/2022
+* Created: 12/25/2024
 * Author: Xiao Han
 */
 

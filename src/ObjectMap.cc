@@ -3,6 +3,11 @@
 * Version: 1.0
 * Created: 05/18/2022
 * Author: Xiao Han
+*
+* Modification: PRENOM
+* Version: 1.0
+* Created: 12/25/2024
+* Author: Saad Ejaz
 */
 
 #include "ObjectMap.h"
@@ -778,8 +783,8 @@ void Object_Map::CalculateObjectShape(const bool removeOutliers)
     // lock1.unlock();
 
     // remove outliers
-    if (mConfig.outlierRemoval.enabled && mCloud->points.size() > mConfig.pointcloud.maxPoints/2)
-        Utils::pointcloudOutlierRemoval<pcl::PointXYZ>(mCloud, mConfig.outlierRemoval.minNeighbors*2, mConfig.outlierRemoval.stdDev);
+    // if (mConfig.outlierRemoval.enabled && mCloud->points.size() > mConfig.pointcloud.maxPoints/2)
+    //     Utils::pointcloudOutlierRemoval<pcl::PointXYZ>(mCloud, mConfig.outlierRemoval.minNeighbors*2, mConfig.outlierRemoval.stdDev);
     if (mConfig.pointcloudEIF.enabled)
         EIFFilterOutlierCloud();
 
@@ -1230,11 +1235,15 @@ void Object_Map::AlignToCanonical()
             }
         }
 
-        // // [Debug] find the best alignment
-        // std::cout << "All scores: " << std::endl;
-        // for(int i = 0; i < numAngles; i++)
-        //     std::cout << scores[i] << std::endl;
-
+        // // [Debug] check the scores
+        // if (mnClass == 56)
+        // {
+        //     std::cout << "All scores: " << std::endl;
+        //     for(int i = 0; i < numAngles; i++)
+        //         std::cout << scores[i] << std::endl;    
+        // }
+        
+        // find the best alignment
         double bestAngle = 0;
         if (!mConfig.align.polyFit)
         {
@@ -1271,9 +1280,20 @@ void Object_Map::AlignToCanonical()
     // get the bbox size
     coarseTow.block(0,3,3,1) = Eigen::Vector3d::Zero();
     auto sizeTrans = GetSizeTransFromTransform(vPos, coarseTow);
-    const Eigen::Vector3d coarseBboxMax = sizeTrans.first;
-    const Eigen::Vector3d coarseBboxMin = -coarseBboxMax;
+    Eigen::Vector3d coarseBboxMax = sizeTrans.first;
+    Eigen::Vector3d coarseBboxMin = -coarseBboxMax;
     coarseTow.block(0,3,3,1) = sizeTrans.second;
+
+    // // [TODO] - update this with future implementation of partial observations
+    // if (mnClass == 32)
+    // {
+    //     // A ball is a special case where the object is probably a sphere - easiest to cater to partial observations
+    //     // [Note] - not all sports balls are spherical, but this is a good approximation
+    //     float maxSize = std::max(std::max(coarseBboxMax(0), coarseBboxMax(1)), coarseBboxMax(2));
+    //     coarseTow.block(0,3,3,1) += Eigen::Vector3d(maxSize, maxSize, maxSize) - coarseBboxMax;
+    //     coarseBboxMax = Eigen::Vector3d(maxSize, maxSize, maxSize);
+    //     coarseBboxMin = -coarseBboxMax;
+    // }
 
     // output the time taken
     auto end = std::chrono::high_resolution_clock::now();
@@ -1300,14 +1320,14 @@ void Object_Map::AlignToCanonical()
             prior_aligned->emplace_back(pos(0),pos(1),pos(2));
         }
 
-        // [Debug] - check the accuracy before alignment
-        start = std::chrono::high_resolution_clock::now();
-        pcl::octree::OctreePointCloud<pcl::PointXYZ> prior_tree(metric_resolution);
-        prior_tree.setInputCloud(prior_aligned);
-        prior_tree.addPointsFromInputCloud();
-        std::cout << "Prior accuracy: " << ComputeOccupancyScoreOctree(prior_tree, object_aligned) << std::endl;
+        // // [Debug] - check the accuracy before alignment
+        // pcl::octree::OctreePointCloud<pcl::PointXYZ> prior_tree(metric_resolution);
+        // prior_tree.setInputCloud(prior_aligned);
+        // prior_tree.addPointsFromInputCloud();
+        // std::cout << "Prior accuracy: " << ComputeOccupancyScoreOctree(prior_tree, object_aligned) << std::endl;
 
         // the ICP algorithm - constrained to be 4 dof - 3 dof translation and rotation about the z-axis
+        start = std::chrono::high_resolution_clock::now();
         pcl::IterativeClosestPointNonLinear<pcl::PointXYZ, pcl::PointXYZ> icp;
         pcl::registration::WarpPointRigid4D<pcl::PointXYZ, pcl::PointXYZ>::Ptr warp_fcn 
             (new pcl::registration::WarpPointRigid4D<pcl::PointXYZ, pcl::PointXYZ>);
@@ -1322,8 +1342,11 @@ void Object_Map::AlignToCanonical()
         // [Debug] - check the accuracy after alignment
         icp.align(*object_aligned);
         std::cout << icp.getFinalTransformation() << std::endl;
-        std::cout << "Prior accuracy: " << ComputeOccupancyScoreOctree(prior_tree, object_aligned) << std::endl;
         end = std::chrono::high_resolution_clock::now();
+
+        // // [Debug] - check the accuracy after alignment
+        // std::cout << "Prior accuracy: " << ComputeOccupancyScoreOctree(prior_tree, object_aligned) << std::endl;
+        
         std::cout << "ICP took " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << " us" << std::endl;
 
         // if transformation is too large, reject the alignment
@@ -1382,9 +1405,15 @@ int Object_Map::ComputeDensityScore(const pcl::PointCloud<pcl::PointXYZ>::Ptr& c
             std::cout << "Something went wrong" << std::endl;
 
         // trilinear interpolation
-        const int ix0 = floor((GRID_SIZE-1) * point.x);
-        const int iy0 = floor((GRID_SIZE-1) * point.y);
-        const int iz0 = floor((GRID_SIZE-1) * point.z);
+        int ix0 = floor((GRID_SIZE-1) * point.x);
+        int iy0 = floor((GRID_SIZE-1) * point.y);
+        int iz0 = floor((GRID_SIZE-1) * point.z);
+        
+        // need to clamp because of floating point errors
+        ix0 = max(0, min(ix0, GRID_SIZE - 1));
+        iy0 = max(0, min(iy0, GRID_SIZE - 1));
+        iz0 = max(0, min(iz0, GRID_SIZE - 1));
+
         const int ix1 = std::min(ix0 + 1, GRID_SIZE - 1);
         const int iy1 = std::min(iy0 + 1, GRID_SIZE - 1);
         const int iz1 = std::min(iz0 + 1, GRID_SIZE - 1);
@@ -1400,7 +1429,7 @@ int Object_Map::ComputeDensityScore(const pcl::PointCloud<pcl::PointXYZ>::Ptr& c
         const float c = c0 * (1 - zd) + c1 * zd;
         energy += c;
     }
-    return static_cast<int>(energy);
+    return static_cast<int>(energy * 10);
 }
 
 pair<Eigen::Vector3d, Eigen::Vector3d> Object_Map::GetSizeTransFromTransform(const vector<Eigen::Vector3d>& points, const Eigen::Matrix4d& T)
@@ -1468,8 +1497,8 @@ void Object_Map::AddToCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud, co
         Utils::pointcloudEuclideanClustering(downsampled, clusterIndices, mConfig.clustering.tolerance);
         if (clusterIndices.size() > 1)
         {
-            cout << "Multiple clusters detected" << endl;
-            cout << "Number of clusters: " << clusterIndices.size() << endl;
+            // cout << "Multiple clusters detected" << endl;
+            // cout << "Number of clusters: " << clusterIndices.size() << endl;
             
             // add clusters that are big enough and pass tests if they are enabled
             pcl::PointCloud<pcl::PointXYZ>::Ptr remainder(new pcl::PointCloud<pcl::PointXYZ>);
@@ -1609,8 +1638,8 @@ void Object_Map::AddCloudCentroidToHistory(const Eigen::Vector3d& centroid)
     mCloudCentroidHistoryStdDev /= (historySize + 1);
     mCloudCentroidHistoryStdDev = mCloudCentroidHistoryStdDev.cwiseSqrt();
 
-    cout << "Centroid history mean: " << mCloudCentroidHistoryMean.transpose() << endl;
-    cout << "Centroid history std dev: " << mCloudCentroidHistoryStdDev.transpose() << endl;
+    // cout << "Centroid history mean: " << mCloudCentroidHistoryMean.transpose() << endl;
+    // cout << "Centroid history std dev: " << mCloudCentroidHistoryStdDev.transpose() << endl;
 }
 
 bool Object_Map::CentroidTTest(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud, const bool addToHistory)
@@ -1623,7 +1652,6 @@ bool Object_Map::CentroidTTest(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
     for (const auto& point : cloud->points)
         centroid += Eigen::Vector3d(point.x, point.y, point.z);
     centroid /= clusterSize;
-    cout << "Cluster centroid: " << centroid.transpose() << endl;
 
     // compute the t-statistic
     const int numHistory = mvCloudCentroidHistory.size();
@@ -1633,8 +1661,6 @@ bool Object_Map::CentroidTTest(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
     
     const int dof = min(100, numHistory - 1);
     const float thresh = mTTest[dof][3]; // significance level
-    cout << "T-statistic: " << tStat.transpose() << endl;
-    cout << "Threshold: " << thresh << endl;
     if ((tStat(0) + tStat(1) + tStat(2)) > 10*thresh)
     {
         cout << "Cluster is bad" << endl;

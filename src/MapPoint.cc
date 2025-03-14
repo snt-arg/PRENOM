@@ -174,7 +174,7 @@ void MapPoint::Replace(MapPoint* pMP)
     int nvisible, nfound;
     map<KeyFrame*,size_t> obs;
     
-    //RO-MAP
+    // RO-MAP
     map<Object_Map*,unsigned long int> objs;
 
     {

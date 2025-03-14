@@ -7,6 +7,10 @@
 * Modification: RO-MAP
 * Version: 1.0
 * Author: Xiao Han
+*
+* Modification: PRENOM
+* Version: 1.0
+* Author: Saad Ejaz
 */
 
 
@@ -135,6 +139,7 @@ public:
     int mnBoxMapPoints;
     int mnMinimumContinueObs;
     float AddMPsDistMultiple;
+    int mnTaskEveryNFrame;
 
     //Asstime
     vector<int> Asstime;

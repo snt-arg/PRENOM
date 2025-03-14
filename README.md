@@ -21,7 +21,7 @@ Test system: ubuntu (docker) 20.04, GPU: T600
 
 # Acknowledgments
 
-This repo is built on top of the **[RO-MAP](https://github.com/XiaoHan-Git/RO-MAP)** framework.
+This repo is built on top of the **[RO-MAP](https://github.com/XiaoHan-Git/RO-MAP)** framework, and borrows a significant amount of their codebase. We thank the authors for their work.
 
 * SLAM: **[ORB-SLAM2](https://github.com/raulmur/ORB_SLAM2)**, **[CubeSLAM](https://github.com/shichaoy/cube_slam)**, **[EAO-SLAM](https://github.com/yanmin-wu/EAO-SLAM)**
 
