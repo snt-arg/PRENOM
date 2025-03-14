@@ -7,7 +7,7 @@
 * Modification: PRENOM
 * Version: 1.0
 * Created: 12/25/2024
-* Author: Xiao Han
+* Author: Saad Ejaz
 */
 
 #include<iostream>
@@ -63,6 +63,10 @@ int main(int argc, char **argv)
     cv::Mat imgInstance;
     cv::Mat imgDepth;
  
+    // sleep for some time to wait for the system to initialize
+    usleep(2*1e6);
+
+    auto start_time = std::chrono::high_resolution_clock::now();
     for(int ni=0; ni<nImages; ni++)
     {
         // Read image from file
@@ -96,40 +100,44 @@ int main(int argc, char **argv)
         
         std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
         double ttrack= std::chrono::duration_cast<std::chrono::duration<double> >(t2 - t1).count();
+        // std::cout << "Tracking time: " << ttrack * 1000<< "ms" << std::endl;
 
         vTimesTrack[ni]=ttrack;
 
         // Wait to load the next frame
         double T=0;
+        double limitT = 0;
         if(ni<nImages-1)
+        {
             T = vTimestamps[ni+1]-tframe;
+            limitT = vTimestamps[ni+1];
+        }
         else if(ni>0)
+        {
             T = tframe-vTimestamps[ni-1];
+            limitT = tframe;
+        }
 
-        if(ttrack<T)
-            usleep((T-ttrack)*1e6); 
-        
+        // minimum time to be slept is until the next timestamp
+        auto current_time = std::chrono::high_resolution_clock::now();
+        double current_ttrack= std::chrono::duration_cast<std::chrono::duration<double> >(current_time - start_time).count();
+        double min_time_to_sleep = limitT - current_ttrack;
+        if (min_time_to_sleep > 0)
+            usleep(min_time_to_sleep*1e6);
     }
+
+    auto pre_end_time = std::chrono::high_resolution_clock::now();
+    double pre_ttrack= std::chrono::duration_cast<std::chrono::duration<double> >(pre_end_time - start_time).count();
+    std::cout << "Pre-Finish time: " << pre_ttrack<< "s" << std::endl;
 
     usleep(1*1e6);
     SLAM.FinishNeRFs();
+    auto end_time = std::chrono::high_resolution_clock::now();
+    double ttrack= std::chrono::duration_cast<std::chrono::duration<double> >(end_time - start_time).count();
+    std::cout << "Total time: " << ttrack<< "s" << std::endl;
+    
     cout<<endl<<"Press Enter to save NeRFs (render images and obj.ply) or Crtl+C to quit ..." <<endl;
     getchar();
-
-    // SLAM.RenderNeRFsTest("./output");
-    // Stop all threads
-    SLAM.Shutdown();
-    
-    // Tracking time statistics
-    sort(vTimesTrack.begin(),vTimesTrack.end());
-    float totaltime = 0;
-    for(int ni=0; ni<nImages; ni++)
-    {
-        totaltime+=vTimesTrack[ni];
-    }
-    cout << "-------" << endl << endl;
-    cout << "median tracking time: " << vTimesTrack[nImages/2] << endl;
-    cout << "mean tracking time: " << totaltime/nImages << endl;
 
     // Save camera trajectory
     SLAM.SaveKeyFrameTrajectoryTUM("KeyFrameTrajectory.txt");
