@@ -28,6 +28,7 @@ bool Object_Map::mnCheckMPsObs = false;
 float Object_Map::mfEIFthreshold, Object_Map::MergeMPsDistMultiple;
 int Object_Map::mnEIFObsNumbers;
 bool Object_Map::MergeDifferentClass = false;
+bool Object_Map::mbMonocular = false;
 
 
 Object_Map::Object_Map(Map* pMap, ObjectConfig& objConfig, const float* priorDensity, const pcl::PointCloud<pcl::PointXYZ>::Ptr& priorCloud, float tTest[][4]) : 
@@ -145,7 +146,7 @@ void Object_Map::EIFFilterOutlier()
     double th = mfEIFthreshold;
     
     //Appropriately expand the EIF threshold for non-textured objects
-    if(mnClass == 73 || mnClass == 46 || mnClass == 41)
+    if(mnClass == 73 || mnClass == 46 || mnClass == 41 || mnClass == 62)
     {
         th = th + 0.02;
     }
@@ -350,59 +351,59 @@ void Object_Map::CalculateObjectPose(const Frame& CurrentFrame)
     //in order to maintain consistency when associating the Object_Frame and the Object_Map, an additional t is stored here.
     
     cv::Mat twobj = cv::Mat::zeros(3,1,CV_32F);
-    // vector<float> X_axis,Y_axis,Z_axis;
-    // pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
-
-    // {
-    //     unique_lock<mutex> lock(mMutexMapPoints);
-        
-    //     for(const auto& pMP : mvpMapPoints)
-    //     {   
-    //         if(pMP->isBad())
-    //             continue;
-
-    //         cv::Mat Pos = pMP->GetWorldPos();
-    //         Eigen::Vector3d Pos_eigen = Converter::toVector3d(Pos);
-    //         pcl::PointXYZ point;
-    //         point.x = Pos_eigen(0);
-    //         point.y = Pos_eigen(1);
-    //         point.z = Pos_eigen(2);
-    //         cloud->points.push_back(point);
-    //     }
-    // }
-
-    // // populate the X,Y,Z axis
-    // for(const auto& point : cloud->points)
-    // {
-    //     X_axis.push_back(point.x);
-    //     Y_axis.push_back(point.y);
-    //     Z_axis.push_back(point.z);
-    // }
-
-    // sort(X_axis.begin(),X_axis.end());
-    // sort(Y_axis.begin(),Y_axis.end());
-    // sort(Z_axis.begin(),Z_axis.end());
-    
-    unique_lock<mutex> lock(mMutexCloud);
-    if (mCloud->empty())
-        return;
-
     Eigen::VectorXd robustX, robustY, robustZ;
-    const size_t dimSize = mCloud->points.size();
-    robustX = Eigen::VectorXd::Zero(dimSize);
-    robustY = Eigen::VectorXd::Zero(dimSize);
-    robustZ = Eigen::VectorXd::Zero(dimSize);
-    for (size_t i = 0; i < dimSize; i++)
-    {
-        robustX(i) = mCloud->points[i].x;
-        robustY(i) = mCloud->points[i].y;
-        robustZ(i) = mCloud->points[i].z;
+    size_t dimSize;
+    
+    if (mbMonocular) {
+        // only map points available
+        unique_lock<mutex> lock(mMutexMapPoints);
+        vector<double> vectorX, vectorY, vectorZ;
+        for (const auto& pMP : mvpMapPoints)
+        {
+            if (pMP->isBad())
+                continue;
+
+            cv::Mat Pos = pMP->GetWorldPos();
+            Eigen::Vector3d Pos_eigen = Converter::toVector3d(Pos);
+            vectorX.push_back(Pos_eigen(0));
+            vectorY.push_back(Pos_eigen(1));
+            vectorZ.push_back(Pos_eigen(2));
+        }
+
+        dimSize = vectorX.size();
+        robustX = Eigen::VectorXd::Zero(dimSize);
+        robustY = Eigen::VectorXd::Zero(dimSize);
+        robustZ = Eigen::VectorXd::Zero(dimSize);
+
+        for (size_t i = 0; i < dimSize; i++)
+        {
+            robustX(i) = vectorX[i];
+            robustY(i) = vectorY[i];
+            robustZ(i) = vectorZ[i];
+        }
     }
+    else {
+        // use the dense point cloud
+        unique_lock<mutex> lock(mMutexCloud);
+        if (mCloud->empty())
+            return;
+
+        dimSize = mCloud->size();
+        robustX = Eigen::VectorXd::Zero(dimSize);
+        robustY = Eigen::VectorXd::Zero(dimSize);
+        robustZ = Eigen::VectorXd::Zero(dimSize);
+        for (size_t i = 0; i < dimSize; i++)
+        {
+            robustX(i) = mCloud->points[i].x;
+            robustY(i) = mCloud->points[i].y;
+            robustZ(i) = mCloud->points[i].z;
+        }
+    }
+    
+    // sort in all axes
     sort(robustX.begin(), robustX.end());
     sort(robustY.begin(), robustY.end());
     sort(robustZ.begin(), robustZ.end());
-
-    lock.unlock();
 
     // get the size - assume it's the same for all axes
     assert(robustY.size() == dimSize && robustZ.size() == dimSize);
@@ -717,78 +718,64 @@ void Object_Map::CalculateObjectShape(const bool removeOutliers)
     Eigen::Matrix4d Tow = Eigen::Matrix4d::Identity();
     Tow.block(0,0,3,3) = R;
 
-    //calculate object center
-    // unique_lock<mutex> lock(mMutexMapPoints);
-    // vector<float> Obj_X_axis,Obj_Y_axis,Obj_Z_axis;
-    // pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
-
-    // for(const auto& pMP : mvpMapPoints)
-    // {   
-    //     if(pMP->isBad())
-    //             continue;
-        
-    //     cv::Mat Pos = pMP->GetWorldPos();
-    //     Eigen::Vector3d ObjPos = R * Converter::toVector3d(Pos);
-    //     pcl::PointXYZ point;
-    //     point.x = ObjPos(0);
-    //     point.y = ObjPos(1);
-    //     point.z = ObjPos(2);
-    //     cloud->points.push_back(point);
-    // }
-
-    // // populate the X,Y,Z axes
-    // for(const auto& point : cloud->points)
-    // {
-    //     Obj_X_axis.push_back(point.x);
-    //     Obj_Y_axis.push_back(point.y);
-    //     Obj_Z_axis.push_back(point.z);
-    // }
-
-    // sort(Obj_X_axis.begin(),Obj_X_axis.end());
-    // sort(Obj_Y_axis.begin(),Obj_Y_axis.end());
-    // sort(Obj_Z_axis.begin(),Obj_Z_axis.end());
-    
-    if (mCloud->empty())
-        return;
-
-    // get pointcloud in object coordinate
-    unique_lock<mutex> lock(mMutexCloud);
-
-    // // add the map points to the cloud
-    // unique_lock<mutex> lock1(mMutexMapPoints);
-    // for (const auto& pMP : mvpMapPoints)
-    // {
-    //     if (pMP->isBad())
-    //         continue;
-
-    //     cv::Mat Pos = pMP->GetWorldPos();
-    //     Eigen::Vector3d ObjPos = Converter::toVector3d(Pos);
-    //     pcl::PointXYZ point;
-    //     point.x = ObjPos(0);
-    //     point.y = ObjPos(1);
-    //     point.z = ObjPos(2);
-    //     mCloud->points.push_back(point);
-    // }
-    // lock1.unlock();
-
-    // remove outliers
-    if (mConfig.pointcloudEIF.enabled)
-        EIFFilterOutlierCloud();
-
-    pcl::PointCloud<pcl::PointXYZ>::Ptr objCloud(new pcl::PointCloud<pcl::PointXYZ>);
-    pcl::transformPointCloud(*mCloud,*objCloud,Tow);
-
     Eigen::VectorXd robustX, robustY, robustZ;
-    const size_t dimSize = objCloud->points.size();
-    robustX = Eigen::VectorXd::Zero(dimSize);
-    robustY = Eigen::VectorXd::Zero(dimSize);
-    robustZ = Eigen::VectorXd::Zero(dimSize);
-    for (size_t i = 0; i < dimSize; i++)
+    pcl::PointCloud<pcl::PointXYZ>::Ptr objCloud(new pcl::PointCloud<pcl::PointXYZ>);
+    size_t dimSize;
+    if (mbMonocular)
     {
-        robustX(i) = objCloud->points[i].x;
-        robustY(i) = objCloud->points[i].y;
-        robustZ(i) = objCloud->points[i].z;
+        unique_lock<mutex> lock(mMutexMapPoints);
+        vector<double> vectorX, vectorY, vectorZ;
+
+        for(const auto& pMP : mvpMapPoints)
+        {   
+            if(pMP->isBad())
+                    continue;
+            
+            cv::Mat Pos = pMP->GetWorldPos();
+            Eigen::Vector3d ObjPos = R * Converter::toVector3d(Pos);
+            vectorX.push_back(ObjPos(0));
+            vectorY.push_back(ObjPos(1));
+            vectorZ.push_back(ObjPos(2));
+        }
+
+        dimSize = vectorX.size();
+        robustX = Eigen::VectorXd::Zero(dimSize);
+        robustY = Eigen::VectorXd::Zero(dimSize);
+        robustZ = Eigen::VectorXd::Zero(dimSize);
+
+        for (size_t i = 0; i < dimSize; i++)
+        {
+            robustX(i) = vectorX[i];
+            robustY(i) = vectorY[i];
+            robustZ(i) = vectorZ[i];
+        }
     }
+    else {
+        // get pointcloud in object coordinate
+        unique_lock<mutex> lock(mMutexCloud);
+
+        if (mCloud->empty())
+            return;
+
+        // remove outliers and transform to object coordinate
+        if (mConfig.pointcloudEIF.enabled)
+            EIFFilterOutlierCloud();
+        pcl::transformPointCloud(*mCloud,*objCloud,Tow);
+
+        dimSize = objCloud->size();
+        robustX = Eigen::VectorXd::Zero(dimSize);
+        robustY = Eigen::VectorXd::Zero(dimSize);
+        robustZ = Eigen::VectorXd::Zero(dimSize);
+
+        for (size_t i = 0; i < dimSize; i++)
+        {
+            robustX(i) = objCloud->points[i].x;
+            robustY(i) = objCloud->points[i].y;
+            robustZ(i) = objCloud->points[i].z;
+        }
+    }
+    
+    // sort in all axes    
     sort(robustX.begin(), robustX.end());
     sort(robustY.begin(), robustY.end());
     sort(robustZ.begin(), robustZ.end());
@@ -818,7 +805,7 @@ void Object_Map::CalculateObjectShape(const bool removeOutliers)
     mShape.a3 = abs(robustZ(dimSize-1) - robustZ(0)) / 2;
     mShape.mfMaxDist = sqrt(mShape.a1 * mShape.a1 + mShape.a2 * mShape.a2 + mShape.a3 * mShape.a3);
 
-    if (removeOutliers)
+    if (!mbMonocular && removeOutliers)
     {
         // remove points outside the bounding box
         pcl::PointCloud<pcl::PointXYZ>::Ptr objCloudFiltered(new pcl::PointCloud<pcl::PointXYZ>);
@@ -852,9 +839,6 @@ void Object_Map::CalculateObjectShape(const bool removeOutliers)
 
         pcl::copyPointCloud(*mCloud,*mFrozenCloud);
         mFrozenTow = Tow;
-
-        // update the object position once points have been removed
-        // CalculateObjectShape(false);
     }
 }
 
@@ -1115,10 +1099,24 @@ void Object_Map::AlignToCanonical()
     }
 
     // get the state of the object
-    const Eigen::Matrix4d Tow = mFrozenTow;
+    Eigen::Matrix4d Tow;
     vector<Eigen::Vector3d> vPos;
-    for (const auto& point : mFrozenCloud->points)
-        vPos.push_back(Eigen::Vector3d(point.x, point.y, point.z));
+    if (mbMonocular)
+    {
+        Tow = mTobjw.to_homogeneous_matrix();
+        for (const auto& pMP : mvpMapPoints)
+        {
+            if (pMP->isBad())
+                continue;
+            vPos.push_back(Converter::toVector3d(pMP->GetWorldPos()));
+        }
+    }
+    else 
+    {
+        Tow = mFrozenTow;
+        for (const auto& point : mFrozenCloud->points)
+            vPos.push_back(Eigen::Vector3d(point.x, point.y, point.z));
+    }
     const size_t numCloudPoints = vPos.size();
 
     // common variables
@@ -1322,7 +1320,6 @@ void Object_Map::AlignToCanonical()
 
         // // [Debug] - check the accuracy after alignment
         // std::cout << "Prior accuracy: " << ComputeOccupancyScoreOctree(prior_tree, object_aligned) << std::endl;
-        
         std::cout << "ICP took " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << " us" << std::endl;
 
         // if transformation is too large, reject the alignment
@@ -1442,7 +1439,6 @@ void Object_Map::AddToCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud, co
 {
     unique_lock<mutex> lock(mMutexCloud);
     if (haveNeRF || cloud->points.size() == 0)
-    // if (cloud->points.size() == 0)
         return;
 
     const size_t minCloudPoints = mConfig.pointcloud.minPoints;
@@ -1651,10 +1647,21 @@ bool Object_Map::CentroidTTest(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
 
 vector<Eigen::Vector3f> Object_Map::GetCloudPoints() const
 {
-    unique_lock<mutex> lock(mMutexCloud);
     vector<Eigen::Vector3f> points;
-    for (const auto& point : mCloud->points)
-        points.emplace_back(point.x, point.y, point.z);
+    if (mbMonocular) {
+        // give the map points
+        unique_lock<mutex> lock(mMutexMapPoints);
+        for (const auto& point : mvpMapPoints) {
+            Eigen::Vector3d pos = Converter::toVector3d(point->GetWorldPos());
+            points.emplace_back(pos(0), pos(1), pos(2));
+        }
+    }
+    else {
+        // give the cloud points
+        unique_lock<mutex> lock(mMutexCloud);
+        for (const auto& point : mCloud->points)
+            points.emplace_back(point.x, point.y, point.z);
+    }
     return points;
 }
 

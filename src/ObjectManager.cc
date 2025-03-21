@@ -8,10 +8,10 @@
 #include "ObjectManager.h"
 #include <thread>
 
-#define GRID_SIZE_CUBE 262144
 
 namespace ORB_SLAM2
 {
+bool ObjectManager::mbMonocular = false;
 
 ObjectManager::ObjectManager(Map* pMap, const string &strDataset, const string &strSettingPath)
     : mpMap(pMap), mStrDataset(strDataset)
@@ -255,7 +255,7 @@ void ObjectManager::AddTaskToQueue(Task task)
 
 void ObjectManager::Run()
 {
-    while(1)
+    while(true)
     {
         if(mTaskQueue.empty())
         {
@@ -455,12 +455,13 @@ void ObjectManager::Run()
         pFrame->AssignLinesToBbox();
 
         // set the class pointclouds
-        vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> vClassClouds;
-        ClassPointcloudsFromDepth(imgDepth,imgInstance,pFrame->mvObjectFrame,vClassClouds,mfMaxDepth);
-        for (size_t i=0; i < pFrame->mvObjectFrame.size(); i++)
-        {
-            Object_Frame& obj = pFrame->mvObjectFrame[i];
-            obj.mCloud = vClassClouds[i]; 
+        if (!mbMonocular) {
+            vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> vClassClouds;
+            ClassPointcloudsFromDepth(imgDepth, imgInstance, pFrame->mvObjectFrame, vClassClouds, mfMaxDepth);
+            for (size_t i = 0; i < pFrame->mvObjectFrame.size(); i++) {
+                Object_Frame& obj = pFrame->mvObjectFrame[i];
+                obj.mCloud = vClassClouds[i];
+            }
         }
 
         //object-nerf-SLAM-----------------The main functions are as follows--------------------------------------
@@ -914,7 +915,8 @@ void ObjectManager::Run()
                         AssOBJ->UpdateMapPoints();
                         pFrame->mvObjectMap[i] = AssOBJ;
                         //cout <<"FrameId: "<<pFrame->mnId <<" ObjId: "<< AssOBJ->mnId<<endl;
-                        AssOBJ->AddToCloud(obj.mCloud, Twc);
+                        if (!mbMonocular)
+                            AssOBJ->AddToCloud(obj.mCloud, Twc);
                         mvNewOrChangedObj.push_back(AssOBJ);
                     }
                     else
@@ -942,7 +944,8 @@ void ObjectManager::Run()
                         newObjMap->mLastLastBbox = obj.mBbox;
                         newObjMap->mlatestFrameLines = obj.mLines;
                         newObjMap->mvHistoryPos.push_back(obj.mPosMean);
-                        newObjMap->AddToCloud(obj.mCloud, Twc);
+                        if (!mbMonocular)
+                            newObjMap->AddToCloud(obj.mCloud, Twc);
 
                         //associate ObjectMap and MapPoints
                         for(size_t j=0;j<obj.mvpMapPoints.size();j++)
@@ -1000,7 +1003,6 @@ void ObjectManager::Run()
             //cout<<"ObjectTime: "<<std::chrono::duration_cast<chrono::milliseconds>(endObjectTime - startTime).count()<<endl;
             //cout <<"--------------------------------------------------------" <<endl;
         }
-
 
         // to push to the Nerf manager after the keyframe is optimized
         if(!mvNewOrChangedObj.empty() && pKF != NULL)
@@ -1098,7 +1100,8 @@ bool ObjectManager::InitObjectMap(Frame* pFrame)
         newObjMap->mLastLastBbox = ObjFrame[i].mBbox;
         newObjMap->mlatestFrameLines = ObjFrame[i].mLines;
         newObjMap->mvHistoryPos.push_back(ObjFrame[i].mPosMean);
-        newObjMap->AddToCloud(ObjFrame[i].mCloud, Twc);
+        if (!mbMonocular)
+            newObjMap->AddToCloud(ObjFrame[i].mCloud, Twc);
         
         //associate ObjectMap and MapPoints
         for(size_t j=0;j<ObjFrame[i].mvpMapPoints.size();j++)

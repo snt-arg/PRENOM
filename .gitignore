@@ -46,6 +46,7 @@ office/
 
 # videos 
 *.mp4
+!docs/**/*.mp4
 
 # zips
 *.zip
@@ -65,10 +66,11 @@ test*
 *.pyc
 __pycache__/
 
-
+# project specific
 output/*
 !output/.gitkeep
 !dependencies/Multi-Object-NeRF/output/.gitkeep
+
 # Prerequisites
 *.d
 # Compiled Object files

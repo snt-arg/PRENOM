@@ -31,7 +31,7 @@
 #include <map>
 #include <mutex>
 
-#define GRID_SIZE_CUBE 262144
+#define GRID_SIZE_CUBE 64 * 64 * 64
 
 using namespace g2o;
 using namespace std;
@@ -71,6 +71,8 @@ public:
     // points to draw
     vector<cv::Point> mvPointsToDrawer;
 
+    // system info
+    static bool mbMonocular;
     
 protected:
     // Map

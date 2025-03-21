@@ -1171,11 +1171,9 @@ void LocalMapping::NewDataToGPU()
     Eigen::Matrix4f pose = Converter::toMatrix4f(pKF->GetPoseInverse());
     string timestamp = to_string(pKF->mTimeStamp);
     
-    // [TODO] - Add sparse depth maps for monocular - need to fix monocular
-    // cv::Mat depth_img = cv::Mat::zeros(img.rows, img.cols,CV_32FC1);
-    // //Generate sparse depth maps
-    // if(mpNeRFManager->mbUseSparseDepth)
-    //     pKF->GenerateSparseDepthImg(depth_img);
+    //Generate sparse depth maps
+    if(mbMonocular && mpNeRFManager->mbUseSparseDepth)
+        pKF->GenerateSparseDepthImg(depth_img);
    
     mpNeRFManager->NewFrameToDataset(mCurImgId,timestamp,img,instance,depth_img,pose);
     mCurImgId += 1;

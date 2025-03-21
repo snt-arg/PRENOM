@@ -60,6 +60,7 @@ int main(int argc, char **argv)
     cv::Mat im;
     cv::Mat ImgInstance;
  
+    auto start_time = std::chrono::high_resolution_clock::now();
     for(int ni=0; ni<nImages; ni++)
     {
         // Read image from file
@@ -91,14 +92,24 @@ int main(int argc, char **argv)
 
         // Wait to load the next frame
         double T=0;
+        double limitT = 0;
         if(ni<nImages-1)
+        {
             T = vTimestamps[ni+1]-tframe;
+            limitT = vTimestamps[ni+1];
+        }
         else if(ni>0)
+        {
             T = tframe-vTimestamps[ni-1];
+            limitT = tframe;
+        }
 
-        if(ttrack<T)
-            usleep((T-ttrack)*1e6); 
-        
+        // minimum time to be slept is until the next timestamp
+        auto current_time = std::chrono::high_resolution_clock::now();
+        double current_ttrack= std::chrono::duration_cast<std::chrono::duration<double> >(current_time - start_time).count();
+        double min_time_to_sleep = limitT - current_ttrack;
+        if (min_time_to_sleep > 0)
+            usleep(min_time_to_sleep*1e6);
     }
 
     usleep(1*1e6);

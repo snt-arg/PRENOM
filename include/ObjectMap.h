@@ -207,6 +207,7 @@ public:
     static float MergeMPsDistMultiple;
     static int mnEIFObsNumbers;
     static bool MergeDifferentClass;
+    static bool mbMonocular;
     
     long unsigned int mnCreatFrameId;
     //latest observation frame
@@ -301,7 +302,7 @@ protected:
     //mutex
     std::mutex mMutex;
     mutable std::mutex mMutexCloud;
-    std::mutex mMutexMapPoints;
+    mutable std::mutex mMutexMapPoints;
     std::mutex mMutexNewMapPoints;
 };
 

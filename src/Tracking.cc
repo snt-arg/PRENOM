@@ -117,7 +117,11 @@ Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer,
         mpORBextractorRight = new ORBextractor(nFeatures,fScaleFactor,nLevels,fIniThFAST,fMinThFAST);
 
     if(sensor==System::MONOCULAR)
+    {
         mpIniORBextractor = new ORBextractor(2*nFeatures,fScaleFactor,nLevels,fIniThFAST,fMinThFAST);
+        Object_Map::mbMonocular = true;
+        ObjectManager::mbMonocular = true;
+    }
 
     cout << endl  << "ORB Extractor Parameters: " << endl;
     cout << "- Number of Features: " << nFeatures << endl;
@@ -165,6 +169,8 @@ Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer,
     cout<<"RestBetweenNeRFs: "<<LocalMapping::mnRestBetweenNeRFs<<endl;
 
     mnTaskEveryNFrame = fSettings["TaskEveryNFrames"];
+    if (Object_Map::mbMonocular)
+        mnTaskEveryNFrame /= 2;
 }
 
 void Tracking::SetLocalMapper(LocalMapping *pLocalMapper)
@@ -266,6 +272,8 @@ cv::Mat Tracking::GrabImageMonocular(const cv::Mat &im,const cv::Mat &ImgInstanc
     mImGray = im;
     mImColor = im;
     mImgInstance = ImgInstance;
+    mImgDepth = cv::Mat::zeros(im.rows, im.cols,CV_32FC1);
+
     if(mImGray.channels()==3)
     {
         if(mbRGB)
@@ -285,189 +293,6 @@ cv::Mat Tracking::GrabImageMonocular(const cv::Mat &im,const cv::Mat &ImgInstanc
         mCurrentFrame = Frame(mImGray,timestamp,mpIniORBextractor,mpORBVocabulary,mK,mDistCoef,mbf,mThDepth);
     else
         mCurrentFrame = Frame(mImGray,timestamp,mpORBextractorLeft,mpORBVocabulary,mK,mDistCoef,mbf,mThDepth);
-
-    
-    //object-nerf-SLAM-------------------------START----------------------------
-    vector<Bbox> Bboxs;
-    //TODO online object detection 
-    if(0)
-    {
-    }
-    else
-    {
-        //offline read object detection----------------------------
-        string sYolopath = strDataset + "/" + "bbox/" + to_string(timestamp) + ".txt";
-        
-        ifstream f;
-        f.open(sYolopath);
-        if(!f.is_open())
-        {
-            cout << "yolo_detection file open fail" << endl;
-            exit(0);
-        }
-        
-        //Read txt
-        string line;
-        float num;
-        vector<float> row;
-        while(getline(f,line))
-        {
-            stringstream s(line);
-            while (s >> num)
-            {
-                row.push_back(num);
-            }
-            Bbox newBbox;
-            newBbox.mnClass = row[0];
-
-            //extend box
-            if(mbExtendBox)
-            {
-                newBbox.x = max(0.0f,row[1] - 10);
-                newBbox.y = max(0.0f,row[2] - 10);
-                newBbox.width = min(float(mImGray.cols-1) - newBbox.x,row[3] + 20);
-                newBbox.height = min(float(mImGray.rows-1) - newBbox.y,row[4] + 20); 
-            }
-            else
-            {
-                newBbox.x = row[1];
-                newBbox.y = row[2];
-                newBbox.width = row[3];
-                newBbox.height = row[4];
-            }
-            newBbox.mfConfidence = row[5];
-            Bboxs.push_back(newBbox);
-            row.clear();
-        }
-        f.close();
-
-    }
-    
-    /*Filter bad Bbox. Including the following situations:
-        Close to image edge
-        Overlap each other
-        Bbox is too large
-        */
-    if(!Bboxs.empty())
-    {
-        vector<int> resIdx(Bboxs.size(),1);
-        vector<Bbox> resBbox;
-        for(size_t i=0;i<Bboxs.size();i++)
-        {
-            if(!resIdx[i])
-                continue;
-
-            Bbox &box = Bboxs[i];
-
-            // There will be errors in target detection, and error categories can be filtered here
-            if(mvIgnoreCategory.find(box.mnClass) != mvIgnoreCategory.end())
-            {
-                resIdx[i] = 0;
-                continue;
-            }
-
-            if(mbCheckBoxEdge)
-            {
-                //Close to image edge
-                if(box.x < 20 || box.x+box.width > mImgWidth-20 || box.y < 20 || box.y+box.height > mImgHeight-20)
-                {  
-                    if(box.area() < mImgWidth * mImgHeight * 0.05)
-                    {
-                        resIdx[i] = 0;
-                        continue;
-                    }
-                    box.mbEdge = true;
-                    if(box.area() < mImgWidth * mImgHeight * 0.1)
-                        box.mbEdgeAndSmall = true;
-                }
-            }
-
-            //Bbox is large than half of img
-            if(box.area() > mImgWidth * mImgHeight * 0.5)
-            {
-                resIdx[i] = 0;
-                continue;
-            }
-            else if(box.area() < mImgWidth * mImgHeight * 0.005)
-            {
-                resIdx[i] = 0;
-                continue;
-            }
-
-            //Overlap each other
-            for(size_t j=0;j<Bboxs.size();j++)
-            {
-                if(i == j || resIdx[j] == 0)
-                    continue;
-                
-                Bbox &box_j = Bboxs[j];
-                float SizeScale = min(box_j.area(),box.area()) / max(box_j.area(),box.area());
-                if(SizeScale > 0.25)
-                {
-                    float overlap = (box & box_j).area();
-                    float IOU = overlap / (box.area() + box_j.area() - overlap);
-                    if(IOU > 0.4)
-                    {
-                        resIdx[i] = 0;
-                        resIdx[j] = 0;
-                        break;
-                    }
-                }
-            } 
-        }
-
-        for(size_t i=0;i<Bboxs.size();i++)
-        {
-            if(resIdx[i])
-                resBbox.push_back(Bboxs[i]);
-        }
-        Bboxs = resBbox;
-    }
-    
-    if(!Bboxs.empty())
-    {
-        mCurrentFrame.mbDetectObject = true;
-        mCurrentFrame.mvBbox = Bboxs;
-        mCurrentFrame.UndistortFrameBbox();
-        
-        //Line detect-----------------------------------------------
-        //using distort Img
-        cv::Mat undistortImg = mImGray.clone();
-        if(mDistCoef.at<float>(0)!=0.0)
-        {
-            cv::undistort(mImGray,undistortImg,mK,mDistCoef);
-        }
-        mpLineDetect->detect_raw_lines(undistortImg,mCurrentFrame.mvLines);
-        
-        vector<KeyLine> FilterLines;
-        mpLineDetect->filter_lines(mCurrentFrame.mvLines,FilterLines);
-        mCurrentFrame.mvLines = FilterLines;
-        Eigen::MatrixXd LinesEigen(FilterLines.size(),4);
-        for(size_t i=0;i<FilterLines.size();i++)
-        {
-            LinesEigen(i,0)=FilterLines[i].startPointX;
-            LinesEigen(i,1)=FilterLines[i].startPointY;
-            LinesEigen(i,2)=FilterLines[i].endPointX;
-            LinesEigen(i,3)=FilterLines[i].endPointY;
-        }
-        mCurrentFrame.mLinesEigen = LinesEigen;
-        
-        //creat object_Frame---------------------------------------------------
-        for(size_t i=0;i<mCurrentFrame.mvBboxUn.size();i++)
-        {
-            Object_Frame object_frame;
-            object_frame.mnFrameId = mCurrentFrame.mnId;
-            object_frame.mBbox = mCurrentFrame.mvBboxUn[i];
-            object_frame.mnClass = object_frame.mBbox.mnClass;
-            object_frame.mfConfidence = object_frame.mBbox.mfConfidence;
-            mCurrentFrame.mvObjectFrame.push_back(object_frame);
-        }
-    }
-    
-    //Assign feature points and lines to detected objects
-    mCurrentFrame.AssignFeaturesToBbox(mImgInstance);
-    
-    mCurrentFrame.AssignLinesToBbox();
 
     Track();
 

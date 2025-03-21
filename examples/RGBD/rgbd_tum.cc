@@ -64,7 +64,7 @@ int main(int argc, char **argv)
     cv::Mat imgDepth;
  
     // sleep for some time to wait for the system to initialize
-    usleep(2*1e6);
+    usleep(1*1e6);
 
     auto start_time = std::chrono::high_resolution_clock::now();
     for(int ni=0; ni<nImages; ni++)
