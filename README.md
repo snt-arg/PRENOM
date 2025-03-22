@@ -57,8 +57,26 @@ sh build.sh <number-of-cores>
 ```
 
 # Datasets
+The six synthetic sequences (from S0 to S5 in the paper) and the two real sequences (scene1 and scene2 from RO-MAP) can be downloaded from [here](https://uniluxembourg-my.sharepoint.com/:f:/g/personal/saad_ejaz_uni_lu/EmyhDvV4eBJAgq74EzDMlt8BoUR8NowcpOXPU-A05GPakQ?e=IIc1Dd). S0 corresponds to the [Cube Diorama Dataset](https://github.com/jc211/nerf-cube-diorama-dataset), albiet with config modified to work with PRENOM. The real sequences are the ones provided by RO-MAP but also with the configuration modified.
+
+# Available Priors  
+The priors for 9 categories are available in the `cookbook` folder, with their YOLO class IDs as the folder name. Each folder consists of:
+* `weights.json` - the meta-learned initial NeRF parameters.
+* `model.ply` - the normalized mesh used to align the prior with the actual object.
+* `density.ply` - the prior density grid used to align priors and for probabilistic ray sampling.
+* `network.json` - the category-specific architecture that was optimised.
+* `config.json` - category-specific object association configuration.
+
+The default configurations can be found in `cookbook/0/`, and `cookbook/recipes.txt` lists all the known categories along with their class IDs.
+
+**Details on how to train a new prior are coming soon!**
 
 # Running
+To run, navigate to the PRENOM directory and run using: 
+```
+__NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia ./examples/RGBD/rgbd_tum ./vocabulary/ORBvoc.bin ./dependencies/Multi-Object-NeRF/Core/configs/base.json <path/to/dataset/S1>
+```
+You can also run a monocular version by using the target `./examples/Monocular/mono_tum`. However, monocular data association is inherently noisy and the run has to be repeated until satisfactory results, as also mentioned by RO-MAP.
 
 
 # Acknowledgments
@@ -66,8 +84,8 @@ sh build.sh <number-of-cores>
 This repo is built on top of the **[RO-MAP](https://github.com/XiaoHan-Git/RO-MAP)** framework, and borrows a significant amount of their codebase. We thank the authors for their work. Other acknowledgements to: 
 
 * SLAM: **[ORB-SLAM2](https://github.com/raulmur/ORB_SLAM2)**, **[CubeSLAM](https://github.com/shichaoy/cube_slam)**, **[EAO-SLAM](https://github.com/yanmin-wu/EAO-SLAM)**
-
 * NeRF: **[instant-ngp](https://github.com/NVlabs/instant-ngp)**, **[ngp_pl](https://github.com/kwea123/ngp_pl)**
+* Farthest Point Sampling: **[FPS](https://github.com/hanm2019/bucket-based_farthest-point-sampling_CPU)**
 
 # Cite
 
