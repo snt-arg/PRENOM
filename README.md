@@ -40,7 +40,7 @@ This repo is GPLv3 Licensed (inherit ORB-SLAM2). The Multi-Object NeRF system ba
 
 * [CUDA](https://developer.nvidia.com/cuda-toolkit) (test version: 12.2)
 
-Test system: Ubuntu 0.04, GPU: NVIDIA T600
+Test system: Ubuntu 20.04, GPU: NVIDIA T600
 
 # Installation  
 Clone the repository and it's dependencies
@@ -60,7 +60,20 @@ sh build.sh <number-of-cores>
 The six synthetic sequences (from S0 to S5 in the paper) and the two real sequences (scene1 and scene2 from RO-MAP) can be downloaded from [here](https://uniluxembourg-my.sharepoint.com/:f:/g/personal/saad_ejaz_uni_lu/EmyhDvV4eBJAgq74EzDMlt8BoUR8NowcpOXPU-A05GPakQ?e=IIc1Dd). S0 corresponds to the [Cube Diorama Dataset](https://github.com/jc211/nerf-cube-diorama-dataset), albiet with config modified to work with PRENOM. The real sequences are the ones provided by RO-MAP but also with the configuration modified.
 
 # Available Priors  
-The priors for 9 categories are available in the `cookbook` folder, with their YOLO class IDs as the folder name. Each folder consists of:
+The priors for 9 categories are available in the `cookbook` folder, with their YOLO class IDs as the folder name. 
+| Category name   | YOLO category name     | ID         |
+| --------------- | ---------------------- | -----------|
+| ball            | sports ball            | 32         |
+| mug             | cup                    | 41         |
+| chair           | chair                  | 56         |
+| plant           | potted plant           | 58         |
+| display         | tv                     | 62         |
+| laptop          | laptop                 | 63         |
+| mouse           | mouse                  | 64         |
+| keyboard        | keyboard               | 66         |
+| book            | book                   | 73         |
+
+Each folder consists of:
 * `weights.json` - the meta-learned initial NeRF parameters.
 * `model.ply` - the normalized mesh used to align the prior with the actual object.
 * `density.ply` - the prior density grid used to align priors and for probabilistic ray sampling.
