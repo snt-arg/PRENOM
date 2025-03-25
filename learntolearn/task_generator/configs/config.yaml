@@ -1,0 +1,82 @@
+%YAML:1.0
+
+#--------------------------------------------------------------------------------------------
+# Camera Parameters. Adjust them!
+#--------------------------------------------------------------------------------------------
+
+# Camera calibration and distortion parameters (OpenCV) 
+Camera.fx: 617.1589965820312
+Camera.fy: 617.1589965820312
+Camera.cx: 320.0
+Camera.cy: 240.0
+Camera.H: 480
+Camera.W: 640
+
+Camera.k1: 0.0
+Camera.k2: 0.0
+Camera.p1: 0.0
+Camera.p2: 0.0
+
+# Camera frames per second 
+Camera.fps: 20.0
+
+# Color order of the images (0: BGR, 1: RGB. It is ignored if images are grayscale)
+Camera.RGB: 1
+
+# Deptmap values factor 
+DepthMapFactor: 8.0e-05
+#21845.0
+# 4.5777065690089265e-05
+#--------------------------------------------------------------------------------------------
+# ORB Parameters
+#--------------------------------------------------------------------------------------------
+
+# ORB Extractor: Number of features per image
+ORBextractor.nFeatures: 1200
+
+# ORB Extractor: Scale factor between levels in the scale pyramid 	
+ORBextractor.scaleFactor: 1.2
+
+# ORB Extractor: Number of levels in the scale pyramid	
+ORBextractor.nLevels: 4
+
+# ORB Extractor: Fast threshold
+# Image is divided in a grid. At each cell FAST are extracted imposing a minimum response.
+# Firstly we impose iniThFAST. If no corners are detected we impose a lower value minThFAST
+# You can lower these values if your images have low contrast			
+ORBextractor.iniThFAST: 8
+ORBextractor.minThFAST: 4
+
+#--------------------------------------------------------------------------------------------
+# Viewer Parameters
+#--------------------------------------------------------------------------------------------
+Viewer.KeyFrameSize: 0.05
+Viewer.KeyFrameLineWidth: 1
+Viewer.GraphLineWidth: 0.9
+Viewer.PointSize: 2
+Viewer.CameraSize: 0.05
+Viewer.CameraLineWidth: 1
+Viewer.ViewpointX: 0
+Viewer.ViewpointY: -0.1
+Viewer.ViewpointZ: -0.8
+Viewer.ViewpointF: 1000
+
+#--------------------------------------------------------------------------------------------
+#OBJECT-NERF-SLAM
+#--------------------------------------------------------------------------------------------
+ExtendBox: 1
+CheckBoxEdge: 0
+IgnoreCategory: []
+BoxMapPoints: 3
+Minimum.continue.obs: 0
+Add.MPs.distance.multiple: 3
+Merge.MPs.distance.multiple: 3
+Merge.Different.class: 0
+#EIF--------------------------------------------
+EIFthreshold: 0.65
+CheckMPsObs: 0
+EIFObsNumbers: 300
+#NeRF--------------------------------------------
+NeRF.UseSparseDepth: 1
+NeRF.TrainStepIterations: 25
+NeRF.AngleChange: 25.0
