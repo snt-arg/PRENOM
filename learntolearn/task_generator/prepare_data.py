@@ -44,13 +44,9 @@ def main():
         output_path += f"{identifier}/"
     if IS_TEST:
         object_dirs = random.choices(object_dirs, k=1)
-        # object_dirs = [object_dirs[0]]
         poses_per_object = NUM_TEST_POSES
     elif CHOOSE_ONE_RANDOM:
         object_dirs = random.choices(object_dirs, k=1)
-        # object_dirs = [object_dirs[4]]
-        # if category_name == "mouse":
-        #     object_dirs = ["sapiens_data/mouse/test/8"]
         poses_per_object = NUM_POSES
     
     if len(object_dirs) == 0:
@@ -169,9 +165,7 @@ def main():
             min_bbox_point -= np.array(EXTRA_PADDING[category_name])
             max_bbox_point += np.array(EXTRA_PADDING[category_name])            
             
-            center = MEAN_CENTER[category_name]
             TSO = np.eye(4)
-            TSO[:3, -1] = center
             TWO = Tws @ TSO
 
         # set some lighting
@@ -239,9 +233,6 @@ def main():
             rgba_pil.save(os.path.join(output_path, "rgb", f"{current_time}.png"))
             depth_pil.save(os.path.join(output_path, "depth", f"{current_time}.png"))
             seg_pil.save(os.path.join(output_path, "instance", f"{current_time}.png"))
-
-            # # [DEBUG] print the object pose Tco to align with the NOCS object pose
-            # Tco = np.linalg.inv(Twc) @ Two
 
             # save the object meta data
             obj_meta_f.write(f"{current_time} {' '.join([str(x) for x in bbox])}\n")

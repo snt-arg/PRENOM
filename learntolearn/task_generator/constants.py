@@ -1,16 +1,5 @@
 import numpy as np
 
-# object in sapien to NOCS object transformation - translation is empirically determined
-# just for reference - not used in the code, this transformation is done in the object pose estimation code
-TON = {
-    "laptop": np.array([
-        [-1,  0,  0, -0.01538],
-        [ 0,  0,  1,  0.00491],
-        [ 0,  1,  0,  0.05610],
-        [ 0,  0,  0,  1]
-    ]),
-}
-
 # object mean sizes based on HS-Pose - in meters and in the sapien object coordinate system
 # to get this, just transform by the corresponding rotation matrix defined in TON
 MEAN_SIZES = { 
@@ -150,74 +139,6 @@ EXTRA_PADDING = {
     ],
 }
 
-MEAN_CENTER = {
-    "laptop": [
-        -0.04350559,
-        -0.0006593,
-         0.06462189
-    ],
-    "keyboard": [
-        -0.00310771,
-        -0.00024749,
-         0.00080058
-    ],
-    "mouse": [
-         0.0019143,
-        -0.0000870,
-         0.0032976,
-    ],
-    "display": [
-         0.0122163,
-        -0.0018345,
-        -0.0000824
-    ],
-    "remote": [
-        -0.0000900,
-         0.0001833,
-        -0.0003046
-    ],
-    "bottle": [
-        -0.0000645,
-        -0.0000019,
-        0.01327084
-    ],
-    "mug": [
-        0,
-        0,
-        0
-    ],
-    "plant": [
-        0,
-        0,
-        0
-    ],
-    "book": [
-        0,
-        0,
-        0
-    ],
-    "ball": [
-        0,
-        0,
-        0
-    ],
-    "chair": [
-        0,
-        0,
-        0
-    ],
-    "car": [
-        0,
-        0,
-        0
-    ],
-    "sofa": [
-        0,
-        0,
-        0
-    ],
-}
-
 # based on YOLOv8
 CATEGORY_IDS = {
     "car": 2,
@@ -247,10 +168,6 @@ DEPTH_SCALE = 12500.0
 NUM_POSES = np.random.randint(20, 40)
 BBOX3D_PADDING = 0.10
 SAMPLING_RADIUS_RANGE = (0.15, 0.45)
-
-# # # for pose training
-# SAMPLING_THETA_RANGE = (0*np.pi, 2*np.pi)
-# SAMPLING_PHI_RANGE = (0*np.pi, 0.7*np.pi) 
 
 # for nerf training
 SAMPLING_THETA_RANGE = (0, 2*np.pi)

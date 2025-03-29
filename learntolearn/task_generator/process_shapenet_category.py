@@ -58,9 +58,7 @@ def process_files(files):
         bbox = mesh.bounds.copy()
         center = (bbox[0] + bbox[1]) / 2
         num_verts = len(mesh.vertices)
-        # print(f"Number of vertices: {num_verts}")
         if num_verts < min_verts:
-            # print(f"Number of vertices is less than {min_verts}")
             continue
         
         # transformation
@@ -76,7 +74,6 @@ def process_files(files):
         yz = bbox["max"][1]/bbox["max"][2]
         zx = bbox["max"][2]/bbox["max"][0]
         if abs(xy - avg_xy) + abs(yz - avg_yz) + abs(zx - avg_zx) > max_diff * 3:
-            # print(f"Aspect ratio of {file} is not close to average")
             continue
 
         # save the mesh and bounding box
@@ -93,9 +90,6 @@ if __name__ == "__main__":
     # get the list of files in the directory
     files = os.listdir(directory)
     files = [file for file in files if os.path.isdir(os.path.join(directory, file))]
-
-    # shuffle the files
-    random.shuffle(files)
 
     # process the files in parallel
     with mp.Pool(NUM_PROCESSES) as pool:
