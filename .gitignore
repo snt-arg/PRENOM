@@ -66,10 +66,16 @@ test*
 *.pyc
 __pycache__/
 
-# project specific
+# output specific
 output/*
 !output/.gitkeep
 !dependencies/Multi-Object-NeRF/output/.gitkeep
+
+# task generator
+learntolearn/task_generator/tasks/*
+learntolearn/task_generator/cads/*
+!learntolearn/task_generator/tasks/.gitkeep
+!learntolearn/task_generator/cads/.gitkeep
 
 # Prerequisites
 *.d
