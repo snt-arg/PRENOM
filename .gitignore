@@ -77,6 +77,10 @@ learntolearn/task_generator/cads/*
 !learntolearn/task_generator/tasks/.gitkeep
 !learntolearn/task_generator/cads/.gitkeep
 
+# meta GA
+learntolearn/output
+learntolearn/checkpoints
+
 # Prerequisites
 *.d
 # Compiled Object files

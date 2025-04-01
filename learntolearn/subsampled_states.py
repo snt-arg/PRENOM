@@ -29,7 +29,7 @@ SUBSAMPLED_STATES = {
         "density_lambda": (0.005, 0.020),
         "depth_lambda": (0.500, 1.500),
     },
-    "laptop": { # final
+    "laptop": {
         "inner_lr": (0.0150, 0.0250),
         "log2_hashmap_size": (14, 15,),
         "per_level_scale": (1.26, 1.50),
@@ -38,7 +38,7 @@ SUBSAMPLED_STATES = {
         "density_lambda": (0.010, 0.050),
         "depth_lambda": (1.500, 1.970),
     },
-    "mug": { # final
+    "mug": {
         "inner_lr": (0.00200, 0.0118),
         "log2_hashmap_size": (14, 15, 16, 17),
         "per_level_scale": (1.32, 1.60),
@@ -47,7 +47,7 @@ SUBSAMPLED_STATES = {
         "density_lambda": (0.140, 0.180),
         "depth_lambda": (0.030, 0.800),
     },
-    "ball": { # final
+    "ball": {
         "inner_lr": (0.00140, 0.0150),
         "log2_hashmap_size": (14, 15, 16, 17),
         "per_level_scale": (1.45, 2.00),
@@ -56,7 +56,7 @@ SUBSAMPLED_STATES = {
         "density_lambda": (0.080, 0.130),
         "depth_lambda": (0.70, 1.50)
     },
-    "display": { # final
+    "display": {
         "inner_lr": (0.0193, 0.0250),
         "log2_hashmap_size": (14, 15, 16,),
         "per_level_scale": (1.30, 1.40),
@@ -65,7 +65,7 @@ SUBSAMPLED_STATES = {
         "density_lambda": (0.001, 0.01),
         "depth_lambda": (0.300, 2.000),
     },
-    "book": { # final
+    "book": {
         "inner_lr": (0.00100, 0.015),
         "log2_hashmap_size": (14, 15, 16,),
         "per_level_scale": (1.50, 2.00),
@@ -74,7 +74,7 @@ SUBSAMPLED_STATES = {
         "density_lambda": (0.010, 0.13),
         "depth_lambda": (1.555, 1.980),
     },
-    "keyboard": { # final
+    "keyboard": {
         "inner_lr": (0.0100, 0.0250),
         "log2_hashmap_size": (14, 15, ),
         "per_level_scale": (1.58, 1.90),
@@ -83,7 +83,7 @@ SUBSAMPLED_STATES = {
         "density_lambda": (0.000, 0.001),
         "depth_lambda": (0.800, 1.400),
     },
-    "mouse": { # final
+    "mouse": {
         "inner_lr": (0.00100, 0.0100),
         "log2_hashmap_size": (14, 15, 16, 17,),
         "per_level_scale": (1.26, 1.80),
@@ -92,7 +92,7 @@ SUBSAMPLED_STATES = {
         "density_lambda": (0.010, 0.100),
         "depth_lambda": (0.100, 1.900),
     },
-    "plant": { # final
+    "plant": {
         "inner_lr": (0.0180, 0.0250),
         "log2_hashmap_size": (14, 15, 16,),
         "per_level_scale": (1.30, 1.55),

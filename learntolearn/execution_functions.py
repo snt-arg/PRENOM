@@ -9,16 +9,17 @@ from pyntcloud import PyntCloud
 import random
 import sys
 
-if __name__ != "__main__":
-    from .reconstruction_evaluation import accuracy, completion
+from reconstruction_evaluation import accuracy, completion
 
-SAPIENS_DATA_DIR = "/home/saadejazz/sap_nerf/output"
-TRAINING_DIR = "/home/saadejazz/PRENOM/dependencies/Multi-Object-NeRF"
-# output directory for the trained models (needs to be the same in system.json of the training script)
+
+TASKS_DIR = "task_generator/tasks"
+SCRIPT_DIR = "../dependencies/Multi-Object-NeRF"
+
+# output directory for the trained models (is relative to SCRIPT_DIR)
 # must have a trailing slash
-OUTPUT_DIR = "/home/saadejazz/momvml_output/"
+OUTPUT_DIR = "../../learntolearn/output/"
 
-# other constants
+# scaling constants for objectives
 LAMBDA_MODEL_SIZE = 0.001
 LAMBDA_TRAIN_TIME = 4.00
 
@@ -31,7 +32,7 @@ def single_train_call(
     data_dir
 ):
     # call the object training script and wait for it to finish
-    command = f"cd {TRAINING_DIR} && __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia ./build/OfflineNeRF {base_path} {system_path} {data_dir}"
+    command = f"cd {SCRIPT_DIR} &&.. __NV_PRIME_RENDER_OFFLOAD./build/OfflineNeRF {base_path} {system_path} {data_dir}"
     object_training = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
     object_training.wait()
     out, _ = object_training.communicate()
@@ -76,11 +77,11 @@ def run_single_meta_iteration(
     identifier = np.random.randint(0, 100000000)
     
     # get all the available data within the category
-    # [TODO] - use an Object-Oriented approach to get the entire dataset once
-    data = os.listdir(os.path.join(SAPIENS_DATA_DIR, category, "train"))
+    # [TODO] - use an Object-Oriented approach to get the entire dataset only once
+    data = os.listdir(os.path.join(TASKS_DIR, category, "train"))
     
     # create a base json file
-    with open(os.path.join(TRAINING_DIR, 'Core/configs/base.json'), 'r') as file:
+    with open(os.path.join(SCRIPT_DIR, 'Core/configs/base.json'), 'r') as file:
         base = json.load(file)
         
     new_base = base.copy()
@@ -130,7 +131,7 @@ def run_single_meta_iteration(
     
     # call the single call function to get a starting model
     data_dir = random.choice(data)
-    data_dir = os.path.join(SAPIENS_DATA_DIR, category, "train", data_dir)
+    data_dir = os.path.join(TASKS_DIR, category, "train", data_dir)
     single_train_call(base_path, system_path, data_dir)
     
     # now change the new_system to load the generated model
@@ -142,7 +143,7 @@ def run_single_meta_iteration(
     # run the meta loop
     for i in range(num_meta_loops - 1):
         data_dir = random.choice(data)
-        data_dir = os.path.join(SAPIENS_DATA_DIR, category, "train", data_dir)
+        data_dir = os.path.join(TASKS_DIR, category, "train", data_dir)
 
         # update the meta learning rate        
         meta_lr = meta_lr * meta_lr_decay
@@ -153,7 +154,7 @@ def run_single_meta_iteration(
         print(f"Meta training iter {i} with data dir: {data_dir}")
         single_train_call(base_path, system_path, data_dir)
         
-        # # copy to see the progress
+        # # [DEBUG] - copy the generated model in between to see progress
         # shutil.copyfile(os.path.join(output_dir, f"meta_{identifier}.obj"), os.path.join(output_dir, f"meta_{identifier}_{i}.obj"))
         # shutil.copyfile(os.path.join(output_dir, f"meta_{identifier}.json"), os.path.join(output_dir, f"meta_{identifier}_{i}.json"))
         
@@ -182,12 +183,12 @@ def evaluate_run(
     os.makedirs(output_dir, exist_ok=True)
 
     # get all the test sets
-    test_dir = os.path.join(SAPIENS_DATA_DIR, category, evaluate_folder)
+    test_dir = os.path.join(TASKS_DIR, category, evaluate_folder)
     test_sets = os.listdir(test_dir)
     print(test_sets)
     
     # set a new base config
-    with open(f'{TRAINING_DIR}/Core/configs/base.json', 'r') as file:
+    with open(f'{SCRIPT_DIR}/Core/configs/base.json', 'r') as file:
         base = json.load(file)
         
     new_base = base.copy()
@@ -251,7 +252,6 @@ def evaluate_run(
             
             for test_set in test_sets:
                 data_dir = os.path.join(test_dir, test_set)
-                # tic = time.time()
                 out = single_train_call(base_path, system_path, data_dir)
                 # scrape the time from the output
                 out = out.decode("utf-8")
@@ -262,15 +262,12 @@ def evaluate_run(
                 print("Total time: ", total_time)
                 sys.stdout.flush()
                 
-                # total_time += time.time() - tic
-                
                 # get the scale of the object
                 with open(os.path.join(test_dir, test_set, "obj_offline/scale.txt"), 'r') as file:
                     line = file.readlines()[0]
                     scale = float(line.strip())
                 
                 # get the resulting mesh - sample fixed number of points from both meshes
-                # the generated mesh
                 ret_pc = PyntCloud.from_file(ret_pc_path)
                 
                 # if no vertices are generated, skip the evaluation
@@ -351,30 +348,3 @@ def evaluate_run(
     
     return first_objective, second_objective
     
-if __name__ == "__main__":
-    # Test a single run
-    identifier = run_single_meta_iteration(
-        "laptop",
-        num_meta_loops=100,
-        num_inner_iterations=793,
-        meta_lr=0.185059555186,
-        meta_lr_decay=0.98,
-        inner_lr=0.019008237935,
-        log2_hashmap_size=14,
-        per_level_scale=1.25992,
-        n_neurons=64,
-        n_hidden_layers=1
-    )
-    
-    # resutls = evaluate_run(
-    #     "display",
-    #     identifier=identifier,
-    #     inner_lr=1e-2,
-    #     log2_hashmap_size=16,
-    #     per_level_scale=1.38191,
-    #     n_neurons=64,
-    #     n_hidden_layers=1
-    # )
-    
-    # print("Mean accuracy and completion: ", resutls[0])
-    # print("Model size: ", resutls[1])
