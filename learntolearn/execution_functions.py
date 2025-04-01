@@ -12,12 +12,13 @@ import sys
 from reconstruction_evaluation import accuracy, completion
 
 
-TASKS_DIR = "task_generator/tasks"
-SCRIPT_DIR = "../dependencies/Multi-Object-NeRF"
 
-# output directory for the trained models (is relative to SCRIPT_DIR)
-# must have a trailing slash
-OUTPUT_DIR = "../../learntolearn/output/"
+REPO_DIR = "/home/saadejazz/PRENOM"
+TASKS_DIR = f"{REPO_DIR}/learntolearn/task_generator/tasks"
+SCRIPT_DIR = f"{REPO_DIR}/dependencies/Multi-Object-NeRF"
+
+# output directory needs to be absolute and have a trailing slash
+OUTPUT_DIR = f"{REPO_DIR}/learntolearn/output/"
 
 # scaling constants for objectives
 LAMBDA_MODEL_SIZE = 0.001
@@ -32,7 +33,7 @@ def single_train_call(
     data_dir
 ):
     # call the object training script and wait for it to finish
-    command = f"cd {SCRIPT_DIR} &&.. __NV_PRIME_RENDER_OFFLOAD./build/OfflineNeRF {base_path} {system_path} {data_dir}"
+    command = f"cd {SCRIPT_DIR} && __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia ./build/OfflineNeRF {base_path} {system_path} {data_dir}"
     object_training = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
     object_training.wait()
     out, _ = object_training.communicate()

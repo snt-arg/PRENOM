@@ -268,7 +268,7 @@ void NeRF::TrainOffline(const int nSteps, const int nItersPerStep)
         // use both identifier (default: 999) and object id to save all object meshes
         mpModel->GenerateMesh(mpModel->mpInferenceStream,mMeshData,"");
         mpModel->TransCPUMesh(mpModel->mpInferenceStream,mCPUMeshData);
-        mpModel->SaveMesh(mOutputDir + std::to_string(mnIdentifier) + "_" + std::to_string(mClass) + ".ply");
+        mpModel->SaveMesh(mOutputDir + std::to_string(mnIdentifier) + "_0.ply");
     }
     // mpModel->RenderVideo(mpModel->mpInferenceStream,mpTrainData,"./output/rgb","./output/depth",1.0);
     std::cout << "Training completed" << std::endl;
