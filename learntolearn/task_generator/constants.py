@@ -165,9 +165,8 @@ FOVY = np.deg2rad(42.5)
 DEPTH_SCALE = 12500.0
 
 # Other configurations
-NUM_POSES = np.random.randint(20, 40)
+NUM_POSES = np.random.randint(25, 50)
 BBOX3D_PADDING = 0.10
-SAMPLING_RADIUS_RANGE = (0.15, 0.45)
 
 # for nerf training
 SAMPLING_THETA_RANGE = (0, 2*np.pi)
@@ -180,4 +179,4 @@ THIRD_PARTY_ONLY = False
 
 # for held-out test set
 IS_TEST = True
-NUM_TEST_POSES = 6
+NUM_TEST_POSES = np.random.randint(5, 11)

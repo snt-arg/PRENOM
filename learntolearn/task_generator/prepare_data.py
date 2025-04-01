@@ -10,39 +10,49 @@ import sapien.core as sapien
 from helpers import *
 from constants import *
 
-"""Usage: python prepare_data.py <category_name>"""
-IS_THIRD_PARTY = False
+
+"""Usage: python prepare_data.py <category_name> <identifier> [--test]"""
 
 def main():
+    is_third_party = False
+    is_test = False
+    
     # get the category name from the command line
     category_name = sys.argv[1]
     identifier = ""
     if len(sys.argv) > 2:
         identifier = sys.argv[2]
-        
+    if len(sys.argv) > 3:
+        if sys.argv[3] == "--test":
+            is_test = True
+    
     category_id = CATEGORY_IDS[category_name]
     
     # get a list of all the objects in the category
-    root_data_dir = "sapiens_data/{}/".format(category_name)
-    if IS_TEST:
+    root_data_dir = "cads/{}/".format(category_name)
+    if is_test:
         root_data_dir = os.path.join(root_data_dir, "test/")
-    object_dirs = [root_data_dir + d for d in os.listdir(root_data_dir) if os.path.isdir(root_data_dir + d)
-                                                                        and not d.startswith("test")]
+    else:
+        root_data_dir = os.path.join(root_data_dir, "train/")
+    object_dirs = [root_data_dir + d for d in os.listdir(root_data_dir) if os.path.isdir(root_data_dir + d)]
     
     # distribute the number of poses across the objects - ceil division
     num_objects = len(object_dirs)
     poses_per_object = ceil(NUM_POSES / num_objects)
     
+    # only take non-sapien objects
     if THIRD_PARTY_ONLY:
         object_dirs = [directory for directory in object_dirs if "object.obj" in os.listdir(directory)]
     
     # create the output directory
-    output_path = f"output/{category_name}/"
-    if IS_TEST:
+    output_path = f"tasks/{category_name}/"
+    if is_test:
         output_path += "test/"
+    else:
+        output_path += "train/"
     if identifier:
         output_path += f"{identifier}/"
-    if IS_TEST:
+    if is_test:
         object_dirs = random.choices(object_dirs, k=1)
         poses_per_object = NUM_TEST_POSES
     elif CHOOSE_ONE_RANDOM:
@@ -58,7 +68,10 @@ def main():
     for dir_name in ("rgb", "depth", "instance", "obj_offline", "models"):
         os.makedirs(os.path.join(output_path, dir_name), exist_ok=True)
     
-    # the file handles - just to improve readability
+    # viewing parameters
+    sampling_radius_range = (None, None)
+    
+    # the file handles
     obj_meta_f, camera_poses_f, img_txt_f = None, None, None
     
     # time references for the images
@@ -70,8 +83,6 @@ def main():
     
     # start generating the images
     for obj_idx, object_dir in enumerate(object_dirs):
-        # create the simulator 
-        print("Object: ", object_dir)
         engine = sapien.Engine()
         renderer = sapien.SapienRenderer(offscreen_only=True)
         engine.set_renderer(renderer)
@@ -80,7 +91,7 @@ def main():
         loader = None
         asset = None
         
-        # the object pose
+        # the object pose - object always at the origin
         Tso = np.eye(4)
         Two = Tws @ Tso
         
@@ -90,13 +101,13 @@ def main():
         
         # check if object is from the Sapiens dataset or third-party
         if os.path.exists(object_dir + "/mobility.urdf"):
-            IS_THIRD_PARTY = False
+            is_third_party = False
         else:
-            IS_THIRD_PARTY = True
+            is_third_party = True
         
         # bounding box points are in the box coordinate system - p_b, need them in the object coordinate system - p_o
         # p_o = Tob @ p_b
-        if IS_THIRD_PARTY:
+        if is_third_party:
             min_bbox_point = np.array(bbox["min"])
             max_bbox_point = np.array(bbox["max"])
         else:
@@ -106,15 +117,19 @@ def main():
         # scale the object to the mean size - object pose estimation code depends on the mean
         scale = 0.25
         if MEAN_SIZES.get(category_name) is not None:
+            max_mean_dim = max(MEAN_SIZES[category_name])
+            sampling_radius_range = (1.1 * max_mean_dim, 2.5 * max_mean_dim)
             lengths = np.abs(max_bbox_point[:3] - min_bbox_point[:3])
             scales = np.array([MEAN_SIZES[category_name][i] / lengths[i] for i in range(3)])
             scale = np.min(scales)
-            if CHOOSE_ONE_RANDOM or IS_TEST:
-                # add a random factor to the scale
-                scale *= random.uniform(0.9, 1.1)
-        
+            # add a random factor to the scale
+            scale *= random.uniform(0.9, 1.1)
+        else:
+            print("No mean size found for the object - please add it in constants.py. Exiting...")
+            return
+    
         # load the object
-        if IS_THIRD_PARTY:
+        if is_third_party:
             loader = scene.create_actor_builder()
             loader.add_collision_from_file(object_dir + "/object.obj", scale=np.array([scale]*3))
             loader.add_visual_from_file(object_dir + "/object.obj", scale=np.array([scale]*3))
@@ -142,17 +157,13 @@ def main():
             
         overall += np.abs(max_bbox_point - min_bbox_point)
         centers += center
-        print("Min bbox point: ", min_bbox_point)
-        print("Max bbox point: ", max_bbox_point)
-        print("Scaling factor: ", scale)
-        
         Tso[:3, -1] = center
         Two = Tws @ Tso
         min_bbox_point = min_bbox_point - center
         max_bbox_point = max_bbox_point - center
         TWO = Two.copy()
         
-        if not CHOOSE_ONE_RANDOM and not IS_TEST:
+        if not CHOOSE_ONE_RANDOM and not is_test:
             mean_size = MEAN_SIZES[category_name]
             bbox = {
                 "min": np.array([-mean_size[0]/2-0.005, -mean_size[1]/2-0.005, -mean_size[2]/2-0.005]),
@@ -226,7 +237,7 @@ def main():
         for i in range(poses_per_object):
             current_time = "{:.6f}".format(start_time + prev_incr + i*time_step)
             point = random_point_in_sphere(Tso[:3, -1],
-                                           SAMPLING_RADIUS_RANGE,
+                                           sampling_radius_range,
                                            SAMPLING_THETA_RANGE,
                                            SAMPLING_PHI_RANGE)
             rgba_pil, depth_pil, seg_pil, bbox, Twc = render_img(point, Tso, scene, camera, category_id)   
@@ -255,10 +266,6 @@ def main():
     
     # copy the config.yaml 
     shutil.copy("configs/config.yaml", os.path.join(output_path, "config.yaml"))
-    
-    # print the overall size of the objects
-    print("Overall size: ", overall/num_objects)
-    print("Mean Center: ", centers/num_objects)
     
     
 if __name__ == "__main__":
