@@ -12,14 +12,14 @@ PRENOM uses category-level meta-learned NeRF priors to accelerate object reconst
 
 ![System architecture](/docs/PRENOM/System_architecture_resized.png)
 
-# Demos
+<!-- # Demos
 All experiments performed on a laptop computer with only an [NVIDA T600 Laptop GPU](https://www.nvidia.com/content/dam/en-zz/Solutions/design-visualization/productspage/quadro/quadro-desktop/proviz-print-nvidia-T600-datasheet-us-nvidia-1670029-r5-web.pdf) with 4GB of memory.
 
 ### Synthetic Sequence
 ![Synthetic sequence](/docs/PRENOM/online_run.gif)
 
 ### Real Sequence
-![Real sequence](/docs/PRENOM/real_online_run.gif)
+![Real sequence](/docs/PRENOM/real_online_run.gif) -->
 
 ### Object comparisons  
 BASELINE is an RGB-D version of [RO-MAP](https://github.com/XiaoHan-Git/RO-MAP).  
@@ -33,14 +33,14 @@ This repo is GPLv3 Licensed (inherit ORB-SLAM2). The Multi-Object NeRF system ba
 # Prerequisites
 
 * [Eigen3](http://eigen.tuxfamily.org) (test version: 3.4.0)
-* [OpenCV](http://opencv.org) (test version: 4.2.0)
-* [Pangolin](https://github.com/stevenlovegrove/Pangolin) (test version: 0.9)
-* [CMake](https://cmake.org/) (test version: 3.28.3)
+* [OpenCV](http://opencv.org) (test version: 4.6.0)
+* [Pangolin](https://github.com/stevenlovegrove/Pangolin) (test version: v0.9)
+* [CMake](https://cmake.org/) (test version: 3.22.1)
 * [PCL](https://pointclouds.org/) (test version 1.10)
 
-* [CUDA](https://developer.nvidia.com/cuda-toolkit) (test version: 12.2)
+* [CUDA](https://developer.nvidia.com/cuda-toolkit) (test version: 12.8)
 
-Test system: Ubuntu 20.04, GPU: NVIDIA T600
+Test system: Ubuntu 24.04 LTS, GPU: RTX 5090 (Nvidia driver: 570)
 
 # Installation  
 Clone the repository and it's dependencies
