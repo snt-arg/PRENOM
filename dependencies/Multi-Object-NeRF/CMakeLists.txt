@@ -12,11 +12,11 @@ ENDIF()
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -Wno-deprecated")
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 ####################
-# Mutil_Object_NeRF#
+# Multi_Object_NeRF#
 ####################
 #add_subdirectory("Core")
 include_directories("Core")

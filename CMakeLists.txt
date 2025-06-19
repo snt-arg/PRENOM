@@ -17,7 +17,7 @@ MESSAGE("Build type: " ${CMAKE_BUILD_TYPE})
 # set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall  -O3 -march=native ")
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall   -O3 -march=native")
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 
@@ -60,10 +60,21 @@ find_package(PCL REQUIRED)
 include_directories(${PROJECT_SOURCE_DIR}/dependencies/Multi-Object-NeRF/Core)
 include_directories(${PROJECT_SOURCE_DIR}/dependencies/Multi-Object-NeRF/Core/include)
 
+if(CMAKE_CUDA_COMPILER)
+    enable_language(CUDA)
+
+    # to tell your code it was found via #ifdef USE_CUDA:
+    add_definitions(-DUSE_CUDA)    
+
+    include_directories("${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
+endif()
+
+
 include_directories(
 ${PROJECT_SOURCE_DIR}
 ${PROJECT_SOURCE_DIR}/include
 ${EIGEN3_INCLUDE_DIR}
+${CUDA_INCLUDE_DIRS}
 ${Pangolin_INCLUDE_DIRS}
 ${PCL_INCLUDE_DIRS}
 ${PROJECT_SOURCE_DIR}/third-party
@@ -125,3 +136,4 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/examples/RGBD)
 add_executable(rgbd_tum
 examples/RGBD/rgbd_tum.cc)
 target_link_libraries(rgbd_tum ${PROJECT_NAME})
+set_target_properties(${PROJECT_NAME} PROPERTIES CUDA_ARCHITECTURES "70;75;90;120")
