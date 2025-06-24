@@ -1,3 +1,0 @@
-sapien==2.2.0
-numpy==1.22.0
-pillow

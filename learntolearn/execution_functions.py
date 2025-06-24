@@ -10,22 +10,8 @@ import random
 import sys
 
 from reconstruction_evaluation import accuracy, completion
+from config import *
 
-
-
-REPO_DIR = "/home/saadejazz/PRENOM"
-TASKS_DIR = f"{REPO_DIR}/learntolearn/task_generator/tasks"
-SCRIPT_DIR = f"{REPO_DIR}/dependencies/Multi-Object-NeRF"
-
-# output directory needs to be absolute and have a trailing slash
-OUTPUT_DIR = f"{REPO_DIR}/learntolearn/output/"
-
-# scaling constants for objectives
-LAMBDA_MODEL_SIZE = 0.001
-LAMBDA_TRAIN_TIME = 4.00
-
-# for evaluation
-NUM_SAMPLED_POINTS = 2**16
 
 def single_train_call(
     base_path,

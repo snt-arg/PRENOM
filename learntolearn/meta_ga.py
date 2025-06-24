@@ -10,11 +10,8 @@ from pymoo.optimize import minimize
 from pymoo.termination.default import DefaultMultiObjectiveTermination
 
 from meta_learning_problem import MultiObjectiveMixedMetaLearn
+from config import SAVE_EVERY, TOTAL_EVALS, POP_SIZE
 
-
-SAVE_EVERY = 1
-TOTAL_EVALS = 50
-POP_SIZE = 20
 
 if __name__ == '__main__':
 

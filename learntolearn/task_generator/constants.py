@@ -172,11 +172,9 @@ BBOX3D_PADDING = 0.10
 SAMPLING_THETA_RANGE = (0, 2*np.pi)
 SAMPLING_PHI_RANGE = (0, np.pi) 
 
-## MODES:
 # choose one
 CHOOSE_ONE_RANDOM = True
 THIRD_PARTY_ONLY = False
 
-# for held-out test set
-IS_TEST = True
+# for test set
 NUM_TEST_POSES = np.random.randint(5, 11)
