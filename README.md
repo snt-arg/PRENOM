@@ -33,14 +33,13 @@ This repo is GPLv3 Licensed (inherit ORB-SLAM2). The Multi-Object NeRF system ba
 # Prerequisites
 
 * [Eigen3](http://eigen.tuxfamily.org) (test version: 3.4.0)
-* [OpenCV](http://opencv.org) (test version: 4.6.0)
 * [Pangolin](https://github.com/stevenlovegrove/Pangolin) (test version: v0.9)
 * [CMake](https://cmake.org/) (test version: 3.22.1)
 * [PCL](https://pointclouds.org/) (test version 1.10)
 
-* [CUDA](https://developer.nvidia.com/cuda-toolkit) (test version: 12.8)
-
-Test system: Ubuntu 24.04 LTS, GPU: RTX 5090 (Nvidia driver: 570)
+Tested on: 
+* Ubuntu 20.04 LTS, GPU: T600 Laptop GPU (Nvidia driver: 535), CUDA 12.2, OpenCV 4.2.0
+* Ubuntu 24.04 LTS, GPU: RTX 5090 (Nvidia driver: 570), CUDA 12.8, OpenCV 4.6.0
 
 # Installation  
 Clone the repository and it's dependencies
