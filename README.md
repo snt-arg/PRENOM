@@ -81,7 +81,7 @@ Each folder consists of:
 
 The default configurations can be found in `cookbook/0/`, and `cookbook/recipes.txt` lists all the known categories along with their class IDs.
 
-**Details on how to train a new prior are coming soon!**
+**Details on how to train a new prior are in the [README](https://github.com/snt-arg/PRENOM/blob/main/learntolearn/README.md) of the `learntolearn` folder.**
 
 # Running
 To run, navigate to the PRENOM directory and run using: 
