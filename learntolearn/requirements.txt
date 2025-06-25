@@ -4,5 +4,5 @@ pyntcloud==0.3.1
 kneefinder
 sapien==2.2.0
 numpy==1.22.0
-pillow==9.5.0
+pillow==10.3.0
 scipy==1.10.1
