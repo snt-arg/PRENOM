@@ -9,8 +9,8 @@ class MultiObjectiveMixedMetaLearn(ElementwiseProblem):
         self.category = kwargs.pop("category", None)
         print(f"Category: {self.category}")
         if not SUBSAMPLED_STATES.get(self.category):
-            raise ValueError(f"Category not found in SUBSAMPLED_STATES")
-        self.subsampled_states = SUBSAMPLED_STATES[self.category]
+            print(f"Category not found in SUBSAMPLED_STATES. Using default settings.")
+        self.subsampled_states = SUBSAMPLED_STATES.get(self.category, SUBSAMPLED_STATES["default"])
         
         vars = {
             # meta learning parameters
@@ -22,7 +22,7 @@ class MultiObjectiveMixedMetaLearn(ElementwiseProblem):
             "depth_lambda": Real(bounds=tuple(self.subsampled_states["depth_lambda"])),
             "depth_prescale": Real(bounds=(1.0, 15.00)),
             
-            # inner learning parameters - ranges can be narrowed down
+            # inner learning parameters
             "inner_lr": Real(bounds=tuple(self.subsampled_states["inner_lr"])),
             "log2_hashmap_size": Choice(options=tuple(self.subsampled_states["log2_hashmap_size"])),
             "per_level_scale": Real(bounds=tuple(self.subsampled_states["per_level_scale"])),

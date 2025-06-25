@@ -16,6 +16,6 @@ NUM_SAMPLED_POINTS = 2**16
 
 
 # Meta-learning configuration
-SAVE_EVERY = 1      # save the algorithm state every SAVE_EVERY evaluations
-TOTAL_EVALS = 1     # total number of evaluations to perform
-POP_SIZE = 10       # population size for the meta-learning algorithm
+SAVE_EVERY = 1          # save the algorithm state every SAVE_EVERY evaluations
+TOTAL_EVALS = 20        # total number of evaluations to perform
+POP_SIZE = 10           # population size for the meta-learning algorithm

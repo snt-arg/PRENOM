@@ -39,7 +39,8 @@ def run_single_meta_iteration(
     n_hidden_layers,
     density_lambda,
     depth_lambda,
-    depth_prescale
+    depth_prescale,
+    save_prior = False
 ):
     """
     Run a single meta iteration.
@@ -136,18 +137,47 @@ def run_single_meta_iteration(
         meta_lr = meta_lr * meta_lr_decay
         new_base["meta_optimizer"]["nested"]["nested"]["learning_rate"] = meta_lr
         with open(base_path, 'w') as file:
-            json.dump(new_base, file)
+            json.dump(new_base, file, indent=4)
         
+        # the training
         print(f"Meta training iter {i} with data dir: {data_dir}")
         single_train_call(base_path, system_path, data_dir)
         
-        # # [DEBUG] - copy the generated model in between to see progress
-        # shutil.copyfile(os.path.join(output_dir, f"meta_{identifier}.obj"), os.path.join(output_dir, f"meta_{identifier}_{i}.obj"))
-        # shutil.copyfile(os.path.join(output_dir, f"meta_{identifier}.json"), os.path.join(output_dir, f"meta_{identifier}_{i}.json"))
-        
-    # delete the json files
+        # time to save the prior model if requested
+        if i == num_meta_loops - 2 and save_prior:
+            # make the prior folder
+            prior_dir = os.path.join("priors", category)
+            os.makedirs(prior_dir, exist_ok=True)
+            
+            # copy the model and json files
+            shutil.copyfile(os.path.join(output_dir, f"meta_{identifier}.ply"), os.path.join(prior_dir, "model.ply"))
+            shutil.copyfile(os.path.join(output_dir, f"{identifier}_density.ply"), os.path.join(prior_dir, "density.ply"))
+            shutil.copyfile(os.path.join(output_dir, f"meta_{identifier}.json"), os.path.join(prior_dir, "weights.json"))
+            shutil.copyfile(base_path, os.path.join(prior_dir, "network.json"))
+            
+            # need to normalize the model.ply file
+            with open(f"{data_dir}/obj_offline/0.txt" , "r") as f:
+                # ignore the first line (comment) and the first element of the second line (category id)
+                lines = f.readlines()[1:]
+                _, _, _, _, _, _, _, a1, a2, a3, a4, a5, a6 = [float(x) for x in lines[0].split()[1:]]
+            
+            # the extent of the object
+            bbox_min = np.array([a1, a2, a3])
+            bbox_max = np.array([a4, a5, a6])
+            
+            # normalize the pointcloud and save it
+            pc = trimesh.load(os.path.join(output_dir, f"meta_{identifier}.ply"))
+            pc.vertices = (pc.vertices - bbox_min) / (bbox_max - bbox_min)
+            print(pc.vertices.min(axis=0), pc.vertices.max(axis=0))
+            pc.export(os.path.join(prior_dir, "model.ply"))
+            
+    # delete the json and model files
     os.remove(base_path)
     os.remove(system_path)
+    os.remove(os.path.join(output_dir, f"meta_{identifier}.ply"))
+    os.remove(os.path.join(output_dir, f"{identifier}_density.ply"))
+    os.remove(os.path.join(output_dir, f"meta_{identifier}.json"))
+
     return identifier
   
 def evaluate_run(

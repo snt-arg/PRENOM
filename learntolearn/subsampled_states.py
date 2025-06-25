@@ -101,4 +101,13 @@ SUBSAMPLED_STATES = {
         "density_lambda": (0.000, 0.010),
         "depth_lambda": (1.000, 1.500),
     },
+    "default": {
+        "inner_lr": (0.00080, 0.04000),
+        "log2_hashmap_size": (14, 15, 16, 17, 18, ),
+        "per_level_scale": (1.26, 2.00),
+        "n_neurons": (16, 32, 64, 128),
+        "n_hidden_layers": (1, 2, 3, ),
+        "density_lambda": (0.000, 0.250),
+        "depth_lambda": (0.001, 2.000),
+    },
 }

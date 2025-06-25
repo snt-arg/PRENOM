@@ -4,7 +4,6 @@ import sys
 
 
 # Usage: python generate_meta_dataset.py <category> <num_train> <num_test>
-
 if __name__ == "__main__":
     category = sys.argv[1]
     num_train = int(sys.argv[2])
@@ -16,7 +15,7 @@ if __name__ == "__main__":
         ("python prepare_data.py {} {} --test", num_test),
     )
     
-    # generate 
+    # start generation 
     for cmd, num_generate in cmds:
         random_identifiers = [str(random.randint(0, 1000000)) for _ in range(num_generate)]
         random_identifiers = list(set(random_identifiers))

@@ -1,6 +1,6 @@
 <div align="center">
     <h1>📇 PRENOM</h1>
-    <p><i>Knowing objects on a first name basis</i></p>
+    <p><i>🫂 Knowing objects on a first name basis 🫂</i></p>
     <a href="https://www.arxiv.org/abs/2503.01582">
     <img src="https://img.shields.io/badge/arXiv-2307.12815-b31b1b.svg" alt="arXiv">
   </a>

@@ -74,8 +74,10 @@ output/*
 # task generator
 learntolearn/task_generator/tasks/*
 learntolearn/task_generator/cads/*
+learntolearn/priors/*
 !learntolearn/task_generator/tasks/.gitkeep
 !learntolearn/task_generator/cads/.gitkeep
+!learntolearn/priors/.gitkeep
 
 # meta GA
 learntolearn/output

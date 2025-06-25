@@ -1,3 +1,5 @@
+# Adapted from vMap
+
 import trimesh
 import numpy as np
 from scipy.spatial import cKDTree as KDTree

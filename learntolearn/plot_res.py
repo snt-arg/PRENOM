@@ -20,36 +20,27 @@ if __name__ == "__main__":
     print("Population size: ", len(algo.pop.get("F")))
     print("Solution size: ", len(res.F))
 
-    # get a subset of the result
-    original_F = res.F.copy()
-    res_F = res.F
-    res_F1 = res_F[:, 0]
-    res_F2 = res_F[:, 1]
-    third_quartile_F1 = np.percentile(res_F1, 100)
-    third_quartile_F2 = np.percentile(res_F2, 100)
-    print("Third quartile F1: ", third_quartile_F1)
-
     # get the knee point
-    x = res.F[:, 0]
-    y = res.F[:, 1]
-
-    if category in ("chair", ):
+    found_knee = False
+    if len(res.F) > 2:
+        x = res.F[:, 0]
+        y = res.F[:, 1]
         kf = KneeFinder(x, y)
         x_val, y_val = kf.find_knee()
     
-    found_knee = False
-    y = list(y)
-    if y_val in y:
-        chosen_part = res.X[y.index(y_val)]
-        chosen_cost = res.F[y.index(y_val)]
-        found_knee = True
-        print(y.index(y_val))
-        print(f"Chosen design for {category}: {chosen_part}")
+        y = list(y)
+        if y_val in y:
+            chosen_part = res.X[y.index(y_val)]
+            chosen_cost = res.F[y.index(y_val)]
+            found_knee = True
+            print(y.index(y_val))
+            print(f"Chosen design for {category}: {chosen_part}")
     
-    # plot the results
+    # print the results
     print(res.X)
     print(res.F)
     
+    # plot the results
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.scatter(algo.pop.get("F")[:, 0], algo.pop.get("F")[:, 1], facecolor="none", edgecolor="blue", label="Non-dominant solutions")
     ax.scatter(res.F[:, 0], res.F[:, 1], facecolor="none", edgecolor="green", label="Pareto front")
