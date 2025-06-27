@@ -50,5 +50,7 @@ This part of the code is to train priors for new categories. We use [pymoo](http
         ```
         The generated priors are in the folder `priors` under folder `<category_name>`. They can be copied to the folder `cookbook` at the base directory of the repository, and added to `cookbook/recipes.txt` respectively. You can follow the structure of the already trained priors provided in this repository.
 
+      **Note:** To verify, check the shape of the `model.ply` file using a software like CloudCompare. If there is no tangible mesh or the mesh seems to be insufficient, you can reduce the marching cubes threshold variable `thresh` in [this](https://github.com/snt-arg/PRENOM/blob/main/dependencies/Multi-Object-NeRF/Core/include/marching_cubes.h) file to < 2 (setting it to 0 is a good starting point). This restricts overly conservative mesh generation which can at times negatively affect the meta-learned prior mesh generation, especially for categories with high intra-category variance like chairs. Once this is modified, build the code and then run the last command again to generate the new prior. 
+
 That's it, I guess. Good Luck!! :)))
 
