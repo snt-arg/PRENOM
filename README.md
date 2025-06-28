@@ -99,7 +99,8 @@ You can also run a monocular version by using the target `./examples/Monocular/m
 This repo is built on top of the **[RO-MAP](https://github.com/XiaoHan-Git/RO-MAP)** framework, and borrows a significant amount of their codebase. We thank the authors for their work. Other acknowledgements to: 
 
 * SLAM: **[ORB-SLAM2](https://github.com/raulmur/ORB_SLAM2)**, **[CubeSLAM](https://github.com/shichaoy/cube_slam)**, **[EAO-SLAM](https://github.com/yanmin-wu/EAO-SLAM)**
-* NeRF: **[instant-ngp](https://github.com/NVlabs/instant-ngp)**, **[ngp_pl](https://github.com/kwea123/ngp_pl)**
+* NeRF: **[instant-ngp](https://github.com/NVlabs/instant-ngp)**
+* Datasets: **[Cube Diorama Dataset](https://github.com/jc211/nerf-cube-diorama-dataset)**
 * Farthest Point Sampling: **[FPS](https://github.com/hanm2019/bucket-based_farthest-point-sampling_CPU)**
 
 # Cite
