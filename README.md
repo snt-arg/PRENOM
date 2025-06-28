@@ -90,6 +90,9 @@ __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia ./examples/RGBD/rgb
 ```
 You can also run a monocular version by using the target `./examples/Monocular/mono_tum`. However, monocular data association is inherently noisy and the run has to be repeated until satisfactory results, as also mentioned by RO-MAP.
 
+# Known Issues  
+1. **`struct cudaPointerAttributes has no member named 'memoryType'` while building PRENOM.**  
+    This can happen since we are using an older version of Pangolin, and in later versions of CUDA, this attribute was renamed to `type`. To fix this, just rename `.memoryType` to `.type` in the file `/usr/local/include/pangolin/image/memcpy.h` (or equivalent location of your Pangolin installation) and re-build PRENOM. 
 
 # Acknowledgments
 
