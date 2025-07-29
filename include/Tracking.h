@@ -1,17 +1,33 @@
 /**
-* This file is part of ORB-SLAM2.
-*
-* Copyright (C) 2014-2016 Raúl Mur-Artal <raulmur at unizar dot es> (University of Zaragoza)
-* For more information see <https://github.com/raulmur/ORB_SLAM2>
-*
-* Modification: RO-MAP
-* Version: 1.0
-* Author: Xiao Han
-*
-* Modification: PRENOM
-* Version: 1.0
-* Author: Saad Ejaz
-*/
+ * @brief This file is part of PRENOM
+ *
+ * This file is based on a file from RO-MAP.
+ *
+ * Original work:
+ * Copyright © 2015‑2017 Raúl Mur‑Artal, J.M.M. Montiel, and Juan D. Tardós 
+ * (University of Zaragoza)
+ * For more information, see <https://github.com/raulmur/ORB_SLAM2>
+ * Copyright © 2023 Han, Xiao and Liu, Houxuan and Ding, Yunchao and Yang, Lu
+ * For more information, see <https://github.com/XiaoHan-Git/RO-MAP>
+ *
+ * Modifications:
+ * This file contains changes made by the Interdisciplinary Centre for Security, 
+ * Reliability and Trust, University of Luxembourg in 2025.
+ *
+ * Copyright © 2025 Interdisciplinary Centre for Security, Reliability and Trust, 
+ * University of Luxembourg.
+ *
+ * PRENOM is free software: you can redistribute it and/or modify it under the terms 
+ * of the GNU General Public License as published by the Free Software Foundation, 
+ * either version 3 of the License, or (at your option) any later version.
+ *
+ * PRENOM is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; 
+ * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
+ * See the GNU General Public License version 3 for more details.
+ *
+ * You should have received a copy of the GNU General Public License version 3 
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ */
 
 
 #ifndef TRACKING_H

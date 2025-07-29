@@ -1,16 +1,33 @@
-/*
-* Modification: SQ-SLAM
-* Version: 1.0
-* Created: 05/18/2022
-* Author: Xiao Han
-*/
-
-/*
-* Modification: PRENOM
-* Version: 1.0
-* Created: 12/25/2024
-* Author: Saad Ejaz
-*/
+/**
+ * @brief This file is part of PRENOM
+ *
+ * This file is based on a file from SQ-SLAM.
+ *
+ * Original work:
+ * Copyright © 2015‑2017 Raúl Mur‑Artal, J.M.M. Montiel, and Juan D. Tardós 
+ * (University of Zaragoza)
+ * For more information, see <https://github.com/raulmur/ORB_SLAM2>
+ * Copyright © 2022 Han, Xiao and Yang, Lu
+ * For more information, see <https://github.com/XiaoHan-Git/SQ-SLAM>
+ *
+ * Modifications:
+ * This file contains changes made by the Interdisciplinary Centre for Security, 
+ * Reliability and Trust, University of Luxembourg in 2025.
+ *
+ * Copyright © 2025 Interdisciplinary Centre for Security, Reliability and Trust, 
+ * University of Luxembourg.
+ *
+ * PRENOM is free software: you can redistribute it and/or modify it under the terms 
+ * of the GNU General Public License as published by the Free Software Foundation, 
+ * either version 3 of the License, or (at your option) any later version.
+ *
+ * PRENOM is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; 
+ * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
+ * See the GNU General Public License version 3 for more details.
+ *
+ * You should have received a copy of the GNU General Public License version 3 
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ */
 
 #ifndef OBJECT_MAP_H
 #define OBJECT_MAP_H

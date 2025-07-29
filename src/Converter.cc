@@ -1,29 +1,35 @@
 /**
-* This file is part of ORB-SLAM2.
-*
-* Copyright (C) 2014-2016 Raúl Mur-Artal <raulmur at unizar dot es> (University of Zaragoza)
-* For more information see <https://github.com/raulmur/ORB_SLAM2>
-*
-* ORB-SLAM2 is free software: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation, either version 3 of the License, or
-* (at your option) any later version.
-*
-* ORB-SLAM2 is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with ORB-SLAM2. If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* Modification: SQ-SLAM
-* Version: 1.0
-* Created: 05/11/2022
-* Author: Xiao Han
-*/
+ * @brief This file is part of PRENOM
+ *
+ * This file is based on a file from SQ-SLAM.
+ *
+ * Original work:
+ * Copyright © 2015‑2017 Raúl Mur‑Artal, J.M.M. Montiel, and Juan D. Tardós 
+ * (University of Zaragoza)
+ * For more information, see <https://github.com/raulmur/ORB_SLAM2>
+ * Copyright © 2022 Han, Xiao and Yang, Lu
+ * For more information, see <https://github.com/XiaoHan-Git/SQ-SLAM>
+ *
+ * Modifications:
+ * This file contains changes made by the Interdisciplinary Centre for Security, 
+ * Reliability and Trust, University of Luxembourg in 2025.
+ *
+ * Copyright © 2025 Interdisciplinary Centre for Security, Reliability and Trust, 
+ * University of Luxembourg.
+ *
+ * PRENOM is free software: you can redistribute it and/or modify it under the terms 
+ * of the GNU General Public License as published by the Free Software Foundation, 
+ * either version 3 of the License, or (at your option) any later version.
+ *
+ * PRENOM is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; 
+ * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
+ * See the GNU General Public License version 3 for more details.
+ *
+ * You should have received a copy of the GNU General Public License version 3 
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ */
 
+ 
 #include "Converter.h"
 
 namespace ORB_SLAM2

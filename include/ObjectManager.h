@@ -1,9 +1,22 @@
-/*
-* Modification: PRENOM
-* Version: 1.0
-* Created: 12/25/2024
-* Author: Saad Ejaz
-*/
+/**
+ * @brief This file is part of PRENOM
+ *
+ * Copyright © 2025 Interdisciplinary Centre for Security, Reliability and Trust, 
+ * University of Luxembourg.
+ *
+ * PRENOM is free software: you can redistribute it and/or modify it under the terms 
+ * of the GNU General Public License as published by the Free Software Foundation, 
+ * either version 3 of the License, or (at your option) any later version.
+ *
+ * PRENOM is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; 
+ * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
+ * See the GNU General Public License version 3 for more details.
+ *
+ * You should have received a copy of the GNU General Public License version 3 
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ */
+
+
 #ifndef OBJECTMANAGER_H
 #define OBJECTMANAGER_H
 
