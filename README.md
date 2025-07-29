@@ -28,7 +28,9 @@ BASELINE is an RGB-D version of [RO-MAP](https://github.com/XiaoHan-Git/RO-MAP).
 
 # License
 
-This repo is GPLv3 Licensed (inherit ORB-SLAM2). The Multi-Object NeRF system based on [tiny-cuda-nn](https://github.com/NVlabs/tiny-cuda-nn) (BSD 3-clause license). The implementation refers to [instant-ngp](https://github.com/NVlabs/instant-ngp) (Nvidia Source Code License-NC) and uses its marching cubes algorithm directly.
+This repo is GPLv3 Licensed (inherit ORB-SLAM2 and RO-MAP). The Multi-Object NeRF system based on [tiny-cuda-nn](https://github.com/NVlabs/tiny-cuda-nn) (BSD 3-clause license). The implementation refers to [instant-ngp](https://github.com/NVlabs/instant-ngp) (Nvidia Source Code License-NC). 
+Academic citation as per If you found this code/work to be useful in your own research, please considering citing the following:
+
 
 # Prerequisites
 
@@ -104,4 +106,26 @@ This repo is built on top of the **[RO-MAP](https://github.com/XiaoHan-Git/RO-MA
 * Farthest Point Sampling: **[FPS](https://github.com/hanm2019/bucket-based_farthest-point-sampling_CPU)**
 
 # Cite
+If you found this code/work useful, consider citing our work:
+```
+@article{PRENOM,
+  title={Category-level Meta-learned NeRF Priors for Efficient Object Mapping},
+  author={Ejaz, Saad and Bavle, Hriday and Ribeiro, Laura and Voos, Holger and Sanchez-Lopez, Jose Luis},
+  journal={arXiv preprint arXiv:2503.01582},
+  year={2025}
+}
+```
 
+Additionally, consider citing RO-MAP that this work builds upon: 
+```
+@ARTICLE{RO-MAP,
+  author={Han, Xiao and Liu, Houxuan and Ding, Yunchao and Yang, Lu},
+  journal={IEEE Robotics and Automation Letters}, 
+  title={RO-MAP: Real-Time Multi-Object Mapping With Neural Radiance Fields}, 
+  year={2023},
+  volume={8},
+  number={9},
+  pages={5950-5957},
+  doi={10.1109/LRA.2023.3302176
+}
+```
