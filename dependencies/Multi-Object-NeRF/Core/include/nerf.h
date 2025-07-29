@@ -1,3 +1,31 @@
+/**
+ * @brief This file is part of PRENOM
+ *
+ * This file is based on a file from RO-MAP which refers to instant-ngp.
+ *
+ * Original work:
+ * Copyright © 2022, NVIDIA Corporation. All rights reserved.
+ *
+ * NVIDIA CORPORATION and its licensors retain all intellectual property and proprietary rights 
+ * in and to this software, related documentation, and any modifications thereto. Any use, 
+ * reproduction, disclosure, or distribution of this software and related documentation 
+ * without an express license agreement from NVIDIA CORPORATION is strictly prohibited.
+ * 
+ * Copyright © 2023 Han, Xiao and Liu, Houxuan and Ding, Yunchao and Yang, Lu
+ * For more information, see <https://github.com/XiaoHan-Git/RO-MAP>
+ *
+ * Modification:
+ * This file contains changes made by the Interdisciplinary Centre for Security, 
+ * Reliability and Trust, University of Luxembourg.
+ *
+ * Copyright © 2025 Interdisciplinary Centre for Security, Reliability and Trust, 
+ * University of Luxembourg.
+ *
+ * All changes remain licensed under the NVIDIA Source Code License-NC.
+ * See the full license for details.
+ */
+
+
 #pragma once
 #include <string>
 
