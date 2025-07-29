@@ -2,8 +2,10 @@
     <h1>📇 PRENOM</h1>
     <p><i>🫂 Knowing objects on a first name basis 🫂</i></p>
     <a href="https://www.arxiv.org/abs/2503.01582">
-    <img src="https://img.shields.io/badge/arXiv-2307.12815-b31b1b.svg" alt="arXiv">
-  </a>
+    <img src="https://img.shields.io/badge/arXiv-2307.12815-b31b1b.svg" alt="arXiv"> 
+  </a> 
+  </br>
+  <b>IROS 2025</b>
 
 </div>
 
@@ -25,11 +27,6 @@ All experiments performed on a laptop computer with only an [NVIDA T600 Laptop G
 BASELINE is an RGB-D version of [RO-MAP](https://github.com/XiaoHan-Git/RO-MAP).  
 
 ![Object comparisons](/docs/PRENOM/objects.gif)
-
-# License
-
-This repo is GPLv3 Licensed (inherit ORB-SLAM2 and RO-MAP). The Multi-Object NeRF system based on [tiny-cuda-nn](https://github.com/NVlabs/tiny-cuda-nn) (BSD 3-clause license). The implementation refers to [instant-ngp](https://github.com/NVlabs/instant-ngp) (Nvidia Source Code License-NC). 
-Academic citation as per If you found this code/work to be useful in your own research, please considering citing the following:
 
 
 # Prerequisites
@@ -97,13 +94,15 @@ You can also run a monocular version by using the target `./examples/Monocular/m
     This can happen since we are using an older version of Pangolin, and in later versions of CUDA, this attribute was renamed to `type`. To fix this, just rename `.memoryType` to `.type` in the file `/usr/local/include/pangolin/image/memcpy.h` (or equivalent location of your Pangolin installation) and re-build PRENOM. 
 
 # Acknowledgments
-
 This repo is built on top of the **[RO-MAP](https://github.com/XiaoHan-Git/RO-MAP)** framework, and borrows a significant amount of their codebase. We thank the authors for their work. Other acknowledgements to: 
 
 * SLAM: **[ORB-SLAM2](https://github.com/raulmur/ORB_SLAM2)**, **[CubeSLAM](https://github.com/shichaoy/cube_slam)**, **[EAO-SLAM](https://github.com/yanmin-wu/EAO-SLAM)**
 * NeRF: **[instant-ngp](https://github.com/NVlabs/instant-ngp)**
 * Datasets: **[Cube Diorama Dataset](https://github.com/jc211/nerf-cube-diorama-dataset)**
 * Farthest Point Sampling: **[FPS](https://github.com/hanm2019/bucket-based_farthest-point-sampling_CPU)**
+
+# License
+This repo is GPLv3 Licensed (inherit ORB-SLAM2 and RO-MAP). The Multi-Object NeRF system based on [tiny-cuda-nn](https://github.com/NVlabs/tiny-cuda-nn) (BSD 3-clause license). The implementation refers to [instant-ngp](https://github.com/NVlabs/instant-ngp) (Nvidia Source Code License-NC). 
 
 # Cite
 If you found this code/work useful, consider citing our work:
