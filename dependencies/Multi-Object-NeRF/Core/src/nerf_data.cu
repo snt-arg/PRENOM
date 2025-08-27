@@ -43,7 +43,8 @@ NeRF_Dataset::~NeRF_Dataset()
     for(int i=0;i<mnImages;i++)
     {
         mvPixelMemory[i].free_memory();
-        mvDepthMemory[i].free_memory();
+        if (mbUseDepth)
+            mvDepthMemory[i].free_memory();
         mvInstanceMemory[i].free_memory();
     }
     mPosesMemory.free_memory();

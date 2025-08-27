@@ -6,3 +6,4 @@ sapien==2.2.0
 numpy==1.22.0
 pillow==9.5.0
 scipy==1.10.1
+tqdm==4.67.1

@@ -25,9 +25,7 @@ def main():
     if len(sys.argv) > 3:
         if sys.argv[3] == "--test":
             is_test = True
-    
-    category_id = CATEGORY_IDS[category_name]
-    
+
     # get a list of all the objects in the category
     root_data_dir = "cads/{}/".format(category_name)
     if is_test:
@@ -35,6 +33,12 @@ def main():
     else:
         root_data_dir = os.path.join(root_data_dir, "train/")
     object_dirs = [root_data_dir + d for d in os.listdir(root_data_dir) if os.path.isdir(root_data_dir + d)]
+    output_path = f"tasks/{category_name}/"
+
+    if "_cluster_" in category_name:
+        category_name = category_name.split("_cluster_")[0]    
+
+    category_id = CATEGORY_IDS[category_name]
     
     # distribute the number of poses across the objects - ceil division
     num_objects = len(object_dirs)
@@ -45,7 +49,6 @@ def main():
         object_dirs = [directory for directory in object_dirs if "object.obj" in os.listdir(directory)]
     
     # create the output directory
-    output_path = f"tasks/{category_name}/"
     if is_test:
         output_path += "test/"
     else:

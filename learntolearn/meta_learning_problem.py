@@ -63,6 +63,6 @@ class MultiObjectiveMixedMetaLearn(ElementwiseProblem):
             float(X["depth_prescale"]),
             load_meta_model = True,
             inner_loops_to_test = [100, 250, 500, 1000], # multiple of 50, otherwise will cut
-            use_depths = [True, False],
+            use_depths = [True,],
             evaluate_folder = "test"
         ))

@@ -128,7 +128,6 @@ bool NerfManagerOffline::CreateNeRF(const string objectFile, const json &systemC
                                             systemConfig["n_steps"],
                                             systemConfig["n_iters_per_step"]));
     return true;
-    
 }
 
 bool NerfManagerOffline::WaitThreadsEnd()
