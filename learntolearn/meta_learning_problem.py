@@ -17,7 +17,7 @@ class MultiObjectiveMixedMetaLearn(ElementwiseProblem):
             "num_meta_loops": Integer(bounds=(35, 100)),
             "num_inner_iterations": Integer(bounds=(500, 1600)),
             "meta_lr": Real(bounds=(1e-3, 2e-1)),
-            "meta_lr_decay": Real(bounds=(0.90, 1.00)),
+            "meta_lr_decay": Real(bounds=(0.97, 1.00)),
             "density_lambda": Real(bounds=tuple(self.subsampled_states["density_lambda"])),
             "depth_lambda": Real(bounds=tuple(self.subsampled_states["depth_lambda"])),
             "depth_prescale": Real(bounds=(1.0, 15.00)),

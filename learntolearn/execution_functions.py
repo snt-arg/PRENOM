@@ -176,7 +176,8 @@ def run_single_meta_iteration(
     os.remove(system_path)
     os.remove(os.path.join(output_dir, f"meta_{identifier}.ply"))
     os.remove(os.path.join(output_dir, f"{identifier}_density.ply"))
-    os.remove(os.path.join(output_dir, f"meta_{identifier}.json"))
+    if save_prior:
+        os.remove(os.path.join(output_dir, f"meta_{identifier}.json"))
 
     return identifier
   
@@ -361,7 +362,6 @@ def evaluate_run(
     os.remove(model_path)
     if load_meta_model:
         os.remove(meta_model_path)
-        os.remove(os.path.join(output_dir, f"meta_{identifier}.ply"))
-    
+
     return first_objective, second_objective
     

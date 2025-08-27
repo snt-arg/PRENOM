@@ -57,9 +57,6 @@ def process_files(files):
         
         bbox = mesh.bounds.copy()
         center = (bbox[0] + bbox[1]) / 2
-        num_verts = len(mesh.vertices)
-        if num_verts < MIN_VERTS:
-            continue
         
         # transformation
         mesh.apply_transform(T)
@@ -82,6 +79,12 @@ def process_files(files):
         save_dir = os.path.join("cads", CATEGORY, train_test, file)
         os.makedirs(save_dir, exist_ok=True)
         mesh.export(f'{save_dir}/object.obj')
+        mesh = trimesh.load(f'{save_dir}/object.obj', force="mesh")
+        if (len(mesh.vertices) < MIN_VERTS):
+            # delete the directory if the mesh is too small
+            os.remove(f'{save_dir}/object.obj')
+            shutil.rmtree(save_dir, ignore_errors=True)
+            continue
         with open(os.path.join(save_dir, "bounding_box.json"), "w") as f:
             json.dump(bbox, f) 
 
@@ -90,6 +93,7 @@ if __name__ == "__main__":
     # get the list of files in the DIRECTORY
     files = os.listdir(DIRECTORY)
     files = [file for file in files if os.path.isdir(os.path.join(DIRECTORY, file))]
+    print("Number of files to process:", len(files))
 
     # process the files in parallel
     with mp.Pool(NUM_PROCESSES) as pool:
