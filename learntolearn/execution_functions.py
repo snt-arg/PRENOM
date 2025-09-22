@@ -2,14 +2,22 @@ import subprocess
 import json
 import numpy as np
 import os
+import time
 import shutil
 import trimesh
-from pyntcloud import PyntCloud
+import fpsample
 import random
 import sys
 
 from reconstruction_evaluation import accuracy, completion
-from config import *
+from config import (
+    OUTPUT_DIR,
+    TASKS_DIR,
+    SCRIPT_DIR,
+    NUM_SAMPLED_POINTS,
+    LAMBDA_MODEL_SIZE,
+    LAMBDA_TRAIN_TIME,
+)
 
 
 def single_train_call(base_path, system_path, data_dir):
@@ -250,7 +258,6 @@ def evaluate_run(
 
     total_time = 0
     ret_pc_path = os.path.join(output_dir, f"{identifier}_0.ply")
-    new_gt_pc_path = os.path.join(output_dir, f"{identifier}_gt.ply")
     for depth_flag in use_depths:
         new_system["use_depth"] = depth_flag
         depth_accuracies = []
@@ -283,33 +290,33 @@ def evaluate_run(
                     scale = float(line.strip())
 
                 # get the resulting mesh - sample fixed number of points from both meshes
-                ret_pc = PyntCloud.from_file(ret_pc_path)
+                ret_pc = trimesh.load(ret_pc_path, force="mesh")
 
                 # if no vertices are generated, skip the evaluation
-                if len(ret_pc.points) == 0:
+                if len(ret_pc.vertices) == 0:
                     depth_accuracies.append(np.nan)
                     depth_completions.append(np.nan)
                     continue
 
-                ret_pc = ret_pc.get_sample(
-                    "mesh_random", n=NUM_SAMPLED_POINTS, rgb=False, normals=False
+                ret_pc = ret_pc.sample(NUM_SAMPLED_POINTS * 2)
+                point_idx = fpsample.bucket_fps_kdline_sampling(
+                    ret_pc, NUM_SAMPLED_POINTS, h=3
                 )
-                ret_pc = trimesh.Trimesh(vertices=ret_pc[["x", "y", "z"]].values)
+                ret_pc = ret_pc[point_idx]
 
                 # the ground truth mesh
                 gt_pc = os.path.join(test_dir, test_set, "0.obj")
                 gt_pc = trimesh.load(gt_pc, force="mesh")
                 gt_pc.vertices = gt_pc.vertices * scale
-                gt_pc.export(new_gt_pc_path)
-                gt_pc = PyntCloud.from_file(new_gt_pc_path)
-                gt_pc = gt_pc.get_sample(
-                    "mesh_random", n=NUM_SAMPLED_POINTS, rgb=False, normals=False
+                gt_pc = gt_pc.sample(NUM_SAMPLED_POINTS * 2)
+                point_idx = fpsample.bucket_fps_kdline_sampling(
+                    gt_pc, NUM_SAMPLED_POINTS, h=3
                 )
-                gt_pc = trimesh.Trimesh(vertices=gt_pc[["x", "y", "z"]].values)
+                gt_pc = gt_pc[point_idx]
 
                 # evaluate the meshes
-                accuracy_metric = accuracy(gt_pc.vertices, ret_pc.vertices)
-                completion_metric = completion(gt_pc.vertices, ret_pc.vertices)
+                accuracy_metric = accuracy(gt_pc, ret_pc)
+                completion_metric = completion(gt_pc, ret_pc)
                 depth_accuracies.append(accuracy_metric)
                 depth_completions.append(completion_metric)
 
@@ -355,12 +362,6 @@ def evaluate_run(
     print("Second objective: ", second_objective)
     sys.stdout.flush()
 
-    # remove the files generated from training
-    try:
-        os.remove(new_gt_pc_path)
-    except OSError:
-        print("None of the runs succeeded :((")
-        pass
     os.remove(ret_pc_path)
     os.remove(model_path)
     if load_meta_model:
