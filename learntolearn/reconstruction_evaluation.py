@@ -11,6 +11,7 @@ def completion_ratio(gt_points, rec_points, dist_th=0.01):
     completion = np.mean((one_distances < dist_th).astype(np.float))
     return completion
 
+
 def accuracy(gt_points, rec_points):
     gt_points_kd_tree = KDTree(gt_points)
     two_distances, _ = gt_points_kd_tree.query(rec_points, workers=-1)
@@ -36,21 +37,26 @@ def chamfer(gt_points, rec_points):
     two_distances, _ = gt_points_kd_tree.query(rec_points, workers=-1)
     gen_to_gt_chamfer = np.mean(two_distances)
 
-    return (gt_to_gen_chamfer + gen_to_gt_chamfer) / 2.
+    return (gt_to_gen_chamfer + gen_to_gt_chamfer) / 2.0
+
 
 def calc_3d_metric(ply, ply_gt):
     """
     3D reconstruction metric.
     """
     metrics = [[] for _ in range(4)]
-    
+
     rec_pc_tri = trimesh.PointCloud(vertices=ply.vertices)
     gt_pc_tri = trimesh.PointCloud(vertices=ply_gt.vertices)
-    
+
     accuracy_rec = accuracy(gt_pc_tri.vertices, rec_pc_tri.vertices)
     completion_rec = completion(gt_pc_tri.vertices, rec_pc_tri.vertices)
-    completion_ratio_rec = completion_ratio(gt_pc_tri.vertices, rec_pc_tri.vertices, 0.004)
-    completion_ratio_rec_1 = completion_ratio(gt_pc_tri.vertices, rec_pc_tri.vertices, 0.01)
+    completion_ratio_rec = completion_ratio(
+        gt_pc_tri.vertices, rec_pc_tri.vertices, 0.004
+    )
+    completion_ratio_rec_1 = completion_ratio(
+        gt_pc_tri.vertices, rec_pc_tri.vertices, 0.01
+    )
 
     metrics[0].append(accuracy_rec)
     metrics[1].append(completion_rec)

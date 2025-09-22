@@ -1,7 +1,8 @@
 import multiprocessing as mp
 from tqdm import tqdm
-import random
 import trimesh
+import random
+import shutil
 import json
 import os
 
@@ -10,17 +11,17 @@ import os
 
 # the location with the ShapeNetCore.v2_normalized dataset
 CATEGORY = "chair"
-DIRECTORY = f"/home/saadejazz/shapenet/data/ShapeNetCore.v2_normalized/03001627/"
+DIRECTORY = "/home/saadejazz/shapenet/data/ShapeNetCore.v2_normalized/03001627/"
 
 # the average aspect ratios of the objects in the CATEGORY
 # objects with aspect ratios differing more than MAX_DIFF from the average will be rejected
 # this is just to ensure that the objects are more or less similar (some objects in ShapeNet are very weird)
 # tune this filter to get the desired number of objects
 AVERAGE_DIM = [0.5, 0.5, 1.1]
-AVG_XY = AVERAGE_DIM[0]/AVERAGE_DIM[1]
-AVG_YZ = AVERAGE_DIM[1]/AVERAGE_DIM[2]
-AVG_ZX = AVERAGE_DIM[2]/AVERAGE_DIM[0]
-MAX_DIFF = 1/3.0
+AVG_XY = AVERAGE_DIM[0] / AVERAGE_DIM[1]
+AVG_YZ = AVERAGE_DIM[1] / AVERAGE_DIM[2]
+AVG_ZX = AVERAGE_DIM[2] / AVERAGE_DIM[0]
+MAX_DIFF = 1 / 3.0
 
 # minimum number of vertices in the ground truth mesh
 MIN_VERTS = 5000
@@ -50,26 +51,23 @@ def process_files(files):
         # get the bbox of the mesh
         bbox = mesh.bounds.copy()
         center = (bbox[0] + bbox[1]) / 2
-        
+
         # offset the center to the origin of the mesh
         for vert in mesh.vertices:
             vert -= center
-        
+
         bbox = mesh.bounds.copy()
         center = (bbox[0] + bbox[1]) / 2
-        
+
         # transformation
         mesh.apply_transform(T)
         bbox = mesh.bounds.copy()
-        bbox = {
-            "min": bbox[0].tolist(),
-            "max": bbox[1].tolist()
-        }
+        bbox = {"min": bbox[0].tolist(), "max": bbox[1].tolist()}
 
         # check if the aspect ratios don't differ too much from average
-        xy = bbox["max"][0]/bbox["max"][1]
-        yz = bbox["max"][1]/bbox["max"][2]
-        zx = bbox["max"][2]/bbox["max"][0]
+        xy = bbox["max"][0] / bbox["max"][1]
+        yz = bbox["max"][1] / bbox["max"][2]
+        zx = bbox["max"][2] / bbox["max"][0]
         if abs(xy - AVG_XY) + abs(yz - AVG_YZ) + abs(zx - AVG_ZX) > MAX_DIFF * 3:
             continue
 
@@ -78,15 +76,15 @@ def process_files(files):
         train_test = "train" if rand < TRAIN_TEST_SPLIT else "test"
         save_dir = os.path.join("cads", CATEGORY, train_test, file)
         os.makedirs(save_dir, exist_ok=True)
-        mesh.export(f'{save_dir}/object.obj')
-        mesh = trimesh.load(f'{save_dir}/object.obj', force="mesh")
-        if (len(mesh.vertices) < MIN_VERTS):
+        mesh.export(f"{save_dir}/object.obj")
+        mesh = trimesh.load(f"{save_dir}/object.obj", force="mesh")
+        if len(mesh.vertices) < MIN_VERTS:
             # delete the directory if the mesh is too small
-            os.remove(f'{save_dir}/object.obj')
+            os.remove(f"{save_dir}/object.obj")
             shutil.rmtree(save_dir, ignore_errors=True)
             continue
         with open(os.path.join(save_dir, "bounding_box.json"), "w") as f:
-            json.dump(bbox, f) 
+            json.dump(bbox, f)
 
 
 if __name__ == "__main__":

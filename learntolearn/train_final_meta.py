@@ -17,8 +17,4 @@ ARCHITECTURES = {
 
 if __name__ == "__main__":
     for category in ARCHITECTURES.keys():
-        run_single_meta_iteration(
-            category,
-            **ARCHITECTURES[category],
-            save_prior=True
-        )
+        run_single_meta_iteration(category, **ARCHITECTURES[category], save_prior=True)
