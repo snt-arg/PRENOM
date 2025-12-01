@@ -107,11 +107,15 @@ This repo is GPLv3 Licensed (inherit ORB-SLAM2 and RO-MAP). The Multi-Object NeR
 # Cite
 If you found this code/work useful, consider citing our work:
 ```
-@article{PRENOM,
-  title={Category-level Meta-learned NeRF Priors for Efficient Object Mapping},
+@INPROCEEDINGS{11247175,
   author={Ejaz, Saad and Bavle, Hriday and Ribeiro, Laura and Voos, Holger and Sanchez-Lopez, Jose Luis},
-  journal={arXiv preprint arXiv:2503.01582},
-  year={2025}
+  booktitle={2025 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)}, 
+  title={Category-level Meta-learned NeRF Priors for Efficient Object Mapping}, 
+  year={2025},
+  volume={},
+  number={},
+  pages={9186-9193},
+  doi={10.1109/IROS60139.2025.11247175}
 }
 ```
 
