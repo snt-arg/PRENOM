@@ -1,11 +1,14 @@
 <div align="center">
     <h1>📇 PRENOM</h1>
     <p><i>🫂 Knowing objects on a first name basis 🫂</i></p>
-    <a href="https://www.arxiv.org/abs/2503.01582">
-    <img src="https://img.shields.io/badge/arXiv-2307.12815-b31b1b.svg" alt="arXiv"> 
-  </a> 
+    <a href='https://arxiv.org/pdf/2503.01582'>
+      <img src='https://img.shields.io/badge/Paper-arXiv-red?style=plastic&logo=adobeacrobatreader&logoColor=red' alt='Paper arXiv'>
+    </a>
+    <a href='https://www.youtube.com/watch?v=IcQyjsn2-2E'>
+      <img src='https://img.shields.io/badge/Video-green?style=plastic&logo=arXiv&logoColor=green' alt='Video'>
+    </a>
   </br>
-  <b>IROS 2025</b>
+  <b><a href="https://ieeexplore.ieee.org/document/11247175">IROS 2025</a></b>
 
 </div>
 
